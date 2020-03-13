@@ -33,10 +33,12 @@ namespace llvm {
       /// Bit scan reverse.
       BSR,
 
-      /// Double shift instructions. These correspond to
-      /// X86::SHLDxx and X86::SHRDxx instructions.
-      SHLD,
-      SHRD,
+      /// X86 funnel/double shift i16 instructions. These correspond to
+      /// X86::SHLDW and X86::SHRDW instructions which have different amt
+      /// modulo rules to generic funnel shifts.
+      /// NOTE: The operand order matches ISD::FSHL/FSHR not SHLD/SHRD.
+      FSHL,
+      FSHR,
 
       /// Bitwise logical AND of floating point values. This corresponds
       /// to X86::ANDPS or X86::ANDPD.
@@ -77,7 +79,7 @@ namespace llvm {
       NT_CALL,
 
       /// X86 compare and logical compare instructions.
-      CMP, COMI, UCOMI,
+      CMP, FCMP, COMI, UCOMI,
 
       /// X86 bit-test instructions.
       BT,
@@ -537,6 +539,10 @@ namespace llvm {
       // falls back to heap allocation if not.
       SEG_ALLOCA,
 
+      // For allocating stack space when using stack clash protector.
+      // Allocation is performed by block, and each block is probed.
+      PROBED_ALLOCA,
+
       // Memory barriers.
       MEMBARRIER,
       MFENCE,
@@ -622,6 +628,9 @@ namespace llvm {
 
       // Strict FMA nodes.
       STRICT_FNMADD, STRICT_FMSUB, STRICT_FNMSUB,
+
+      // Conversions between float and half-float.
+      STRICT_CVTPS2PH, STRICT_CVTPH2PS,
 
       // Compare and swap.
       LCMPXCHG_DAG = ISD::FIRST_TARGET_MEMORY_OPCODE,
@@ -801,13 +810,14 @@ namespace llvm {
     /// and some i16 instructions are slow.
     bool IsDesirableToPromoteOp(SDValue Op, EVT &PVT) const override;
 
-    /// Return 1 if we can compute the negated form of the specified expression
-    /// for the same cost as the expression itself, or 2 if we can compute the
-    /// negated form more cheaply than the expression itself. Else return 0.
-    char isNegatibleForFree(SDValue Op, SelectionDAG &DAG, bool LegalOperations,
-                            bool ForCodeSize, unsigned Depth) const override;
+    /// Returns whether computing the negated form of the specified expression
+    /// is more expensive, the same cost or cheaper.
+    NegatibleCost getNegatibleCost(SDValue Op, SelectionDAG &DAG,
+                                   bool LegalOperations, bool ForCodeSize,
+                                   unsigned Depth) const override;
 
-    /// If isNegatibleForFree returns true, return the newly negated expression.
+    /// If getNegatibleCost returns Neutral/Cheaper, return the newly negated
+    /// expression.
     SDValue getNegatedExpression(SDValue Op, SelectionDAG &DAG,
                                  bool LegalOperations, bool ForCodeSize,
                                  unsigned Depth) const override;
@@ -1142,7 +1152,8 @@ namespace llvm {
     /// Overflow nodes should get combined/lowered to optimal instructions
     /// (they should allow eliminating explicit compares by getting flags from
     /// math ops).
-    bool shouldFormOverflowOp(unsigned Opcode, EVT VT) const override;
+    bool shouldFormOverflowOp(unsigned Opcode, EVT VT,
+                              bool MathUsed) const override;
 
     bool storeOfVectorConstantIsCheap(EVT MemVT, unsigned NumElem,
                                       unsigned AddrSpace) const override {
@@ -1198,8 +1209,10 @@ namespace llvm {
     /// offset as appropriate.
     Value *getSafeStackPointerLocation(IRBuilder<> &IRB) const override;
 
-    std::pair<SDValue, SDValue> BuildFILD(SDValue Op, EVT SrcVT, SDValue Chain,
-                                          SDValue StackSlot,
+    std::pair<SDValue, SDValue> BuildFILD(EVT DstVT, EVT SrcVT, const SDLoc &DL,
+                                          SDValue Chain, SDValue Pointer,
+                                          MachinePointerInfo PtrInfo,
+                                          unsigned Align,
                                           SelectionDAG &DAG) const;
 
     bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override;
@@ -1224,6 +1237,8 @@ namespace llvm {
 
     bool supportSwiftError() const override;
 
+    bool hasStackProbeSymbol(MachineFunction &MF) const override;
+    bool hasInlineStackProbe(MachineFunction &MF) const override;
     StringRef getStackProbeSymbolName(MachineFunction &MF) const override;
 
     unsigned getStackProbeSize(MachineFunction &MF) const;
@@ -1313,7 +1328,7 @@ namespace llvm {
 
     unsigned getAddressSpace(void) const;
 
-    SDValue FP_TO_INTHelper(SDValue Op, SelectionDAG &DAG, bool isSigned,
+    SDValue FP_TO_INTHelper(SDValue Op, SelectionDAG &DAG, bool IsSigned,
                             SDValue &Chain) const;
     SDValue LRINT_LLRINTHelper(SDNode *N, SelectionDAG &DAG) const;
 
@@ -1406,7 +1421,7 @@ namespace llvm {
     const MCPhysReg *getScratchRegisters(CallingConv::ID CC) const override;
 
     TargetLoweringBase::AtomicExpansionKind
-    shouldExpandAtomicLoadInIR(LoadInst *SI) const override;
+    shouldExpandAtomicLoadInIR(LoadInst *LI) const override;
     bool shouldExpandAtomicStoreInIR(StoreInst *SI) const override;
     TargetLoweringBase::AtomicExpansionKind
     shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const override;
@@ -1448,6 +1463,9 @@ namespace llvm {
     MachineBasicBlock *EmitLoweredSegAlloca(MachineInstr &MI,
                                             MachineBasicBlock *BB) const;
 
+    MachineBasicBlock *EmitLoweredProbedAlloca(MachineInstr &MI,
+                                               MachineBasicBlock *BB) const;
+
     MachineBasicBlock *EmitLoweredTLSAddr(MachineInstr &MI,
                                           MachineBasicBlock *BB) const;
 
@@ -1479,19 +1497,18 @@ namespace llvm {
     /// corresponding X86 condition code constant in X86CC.
     SDValue emitFlagsForSetcc(SDValue Op0, SDValue Op1, ISD::CondCode CC,
                               const SDLoc &dl, SelectionDAG &DAG,
-                              SDValue &X86CC, SDValue &Chain,
-                              bool IsSignaling) const;
+                              SDValue &X86CC) const;
 
     /// Check if replacement of SQRT with RSQRT should be disabled.
-    bool isFsqrtCheap(SDValue Operand, SelectionDAG &DAG) const override;
+    bool isFsqrtCheap(SDValue Op, SelectionDAG &DAG) const override;
 
     /// Use rsqrt* to speed up sqrt calculations.
-    SDValue getSqrtEstimate(SDValue Operand, SelectionDAG &DAG, int Enabled,
+    SDValue getSqrtEstimate(SDValue Op, SelectionDAG &DAG, int Enabled,
                             int &RefinementSteps, bool &UseOneConstNR,
                             bool Reciprocal) const override;
 
     /// Use rcp* to speed up fdiv calculations.
-    SDValue getRecipEstimate(SDValue Operand, SelectionDAG &DAG, int Enabled,
+    SDValue getRecipEstimate(SDValue Op, SelectionDAG &DAG, int Enabled,
                              int &RefinementSteps) const override;
 
     /// Reassociate floating point divisions into multiply by reciprocal.
@@ -1506,101 +1523,14 @@ namespace llvm {
                              const TargetLibraryInfo *libInfo);
   } // end namespace X86
 
-  // Base class for all X86 non-masked store operations.
-  class X86StoreSDNode : public MemSDNode {
-  public:
-    X86StoreSDNode(unsigned Opcode, unsigned Order, const DebugLoc &dl,
-                   SDVTList VTs, EVT MemVT,
-                   MachineMemOperand *MMO)
-      :MemSDNode(Opcode, Order, dl, VTs, MemVT, MMO) {}
-    const SDValue &getValue() const { return getOperand(1); }
-    const SDValue &getBasePtr() const { return getOperand(2); }
-
-    static bool classof(const SDNode *N) {
-      return N->getOpcode() == X86ISD::VTRUNCSTORES ||
-        N->getOpcode() == X86ISD::VTRUNCSTOREUS;
-    }
-  };
-
-  // Base class for all X86 masked store operations.
-  // The class has the same order of operands as MaskedStoreSDNode for
-  // convenience.
-  class X86MaskedStoreSDNode : public MemSDNode {
-  public:
-    X86MaskedStoreSDNode(unsigned Opcode, unsigned Order,
-                         const DebugLoc &dl, SDVTList VTs, EVT MemVT,
-                         MachineMemOperand *MMO)
-      : MemSDNode(Opcode, Order, dl, VTs, MemVT, MMO) {}
-
-    const SDValue &getValue()   const { return getOperand(1); }
-    const SDValue &getBasePtr() const { return getOperand(2); }
-    const SDValue &getMask()    const { return getOperand(3); }
-
-    static bool classof(const SDNode *N) {
-      return N->getOpcode() == X86ISD::VMTRUNCSTORES ||
-        N->getOpcode() == X86ISD::VMTRUNCSTOREUS;
-    }
-  };
-
-  // X86 Truncating Store with Signed saturation.
-  class TruncSStoreSDNode : public X86StoreSDNode {
-  public:
-    TruncSStoreSDNode(unsigned Order, const DebugLoc &dl,
-                        SDVTList VTs, EVT MemVT, MachineMemOperand *MMO)
-      : X86StoreSDNode(X86ISD::VTRUNCSTORES, Order, dl, VTs, MemVT, MMO) {}
-
-    static bool classof(const SDNode *N) {
-      return N->getOpcode() == X86ISD::VTRUNCSTORES;
-    }
-  };
-
-  // X86 Truncating Store with Unsigned saturation.
-  class TruncUSStoreSDNode : public X86StoreSDNode {
-  public:
-    TruncUSStoreSDNode(unsigned Order, const DebugLoc &dl,
-                      SDVTList VTs, EVT MemVT, MachineMemOperand *MMO)
-      : X86StoreSDNode(X86ISD::VTRUNCSTOREUS, Order, dl, VTs, MemVT, MMO) {}
-
-    static bool classof(const SDNode *N) {
-      return N->getOpcode() == X86ISD::VTRUNCSTOREUS;
-    }
-  };
-
-  // X86 Truncating Masked Store with Signed saturation.
-  class MaskedTruncSStoreSDNode : public X86MaskedStoreSDNode {
-  public:
-    MaskedTruncSStoreSDNode(unsigned Order,
-                         const DebugLoc &dl, SDVTList VTs, EVT MemVT,
-                         MachineMemOperand *MMO)
-      : X86MaskedStoreSDNode(X86ISD::VMTRUNCSTORES, Order, dl, VTs, MemVT, MMO) {}
-
-    static bool classof(const SDNode *N) {
-      return N->getOpcode() == X86ISD::VMTRUNCSTORES;
-    }
-  };
-
-  // X86 Truncating Masked Store with Unsigned saturation.
-  class MaskedTruncUSStoreSDNode : public X86MaskedStoreSDNode {
-  public:
-    MaskedTruncUSStoreSDNode(unsigned Order,
-                            const DebugLoc &dl, SDVTList VTs, EVT MemVT,
-                            MachineMemOperand *MMO)
-      : X86MaskedStoreSDNode(X86ISD::VMTRUNCSTOREUS, Order, dl, VTs, MemVT, MMO) {}
-
-    static bool classof(const SDNode *N) {
-      return N->getOpcode() == X86ISD::VMTRUNCSTOREUS;
-    }
-  };
-
   // X86 specific Gather/Scatter nodes.
   // The class has the same order of operands as MaskedGatherScatterSDNode for
   // convenience.
-  class X86MaskedGatherScatterSDNode : public MemSDNode {
+  class X86MaskedGatherScatterSDNode : public MemIntrinsicSDNode {
   public:
-    X86MaskedGatherScatterSDNode(unsigned Opc, unsigned Order,
-                                 const DebugLoc &dl, SDVTList VTs, EVT MemVT,
-                                 MachineMemOperand *MMO)
-        : MemSDNode(Opc, Order, dl, VTs, MemVT, MMO) {}
+    // This is a intended as a utility and should never be directly created.
+    X86MaskedGatherScatterSDNode() = delete;
+    ~X86MaskedGatherScatterSDNode() = delete;
 
     const SDValue &getBasePtr() const { return getOperand(3); }
     const SDValue &getIndex()   const { return getOperand(4); }
@@ -1615,11 +1545,6 @@ namespace llvm {
 
   class X86MaskedGatherSDNode : public X86MaskedGatherScatterSDNode {
   public:
-    X86MaskedGatherSDNode(unsigned Order, const DebugLoc &dl, SDVTList VTs,
-                          EVT MemVT, MachineMemOperand *MMO)
-        : X86MaskedGatherScatterSDNode(X86ISD::MGATHER, Order, dl, VTs, MemVT,
-                                       MMO) {}
-
     const SDValue &getPassThru() const { return getOperand(1); }
 
     static bool classof(const SDNode *N) {
@@ -1629,11 +1554,6 @@ namespace llvm {
 
   class X86MaskedScatterSDNode : public X86MaskedGatherScatterSDNode {
   public:
-    X86MaskedScatterSDNode(unsigned Order, const DebugLoc &dl, SDVTList VTs,
-                           EVT MemVT, MachineMemOperand *MMO)
-        : X86MaskedGatherScatterSDNode(X86ISD::MSCATTER, Order, dl, VTs, MemVT,
-                                       MMO) {}
-
     const SDValue &getValue() const { return getOperand(1); }
 
     static bool classof(const SDNode *N) {

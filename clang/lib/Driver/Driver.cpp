@@ -38,8 +38,8 @@
 #include "ToolChains/NaCl.h"
 #include "ToolChains/NetBSD.h"
 #include "ToolChains/OpenBSD.h"
-#include "ToolChains/PS4CPU.h"
 #include "ToolChains/PPCLinux.h"
+#include "ToolChains/PS4CPU.h"
 #include "ToolChains/RISCVToolchain.h"
 #include "ToolChains/Solaris.h"
 #include "ToolChains/TCE.h"
@@ -71,6 +71,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatVariadic.h"
+#include "llvm/Support/Host.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Process.h"
@@ -3752,6 +3753,11 @@ void Driver::BuildJobs(Compilation &C) const {
                        /*LinkingOutput*/ LinkingOutput, CachedResults,
                        /*TargetDeviceOffloadKind*/ Action::OFK_None);
   }
+
+  // If we have more than one job, then disable integrated-cc1 for now.
+  if (C.getJobs().size() > 1)
+    for (auto &J : C.getJobs())
+      J.InProcess = false;
 
   // If the user passed -Qunused-arguments or there were errors, don't warn
   // about any unused arguments.

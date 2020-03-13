@@ -17,6 +17,7 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/StandardTypes.h"
+#include "mlir/Interfaces/SideEffects.h"
 
 namespace mlir {
 class MLIRContext;
@@ -53,6 +54,16 @@ void populateVectorToVectorTransformationPatterns(
 /// "leak" coming in, however, some tuple related ops will remain.
 void populateVectorSlicesLoweringPatterns(OwningRewritePatternList &patterns,
                                           MLIRContext *context);
+
+/// Collect a set of transformation patterns that are related to contracting
+/// or expanding vector operations:
+///   ContractionOpLowering,
+///   ShapeCastOp2DDownCastRewritePattern, ShapeCastOp2DUpCastRewritePattern
+///   OuterproductOpLowering
+/// These transformation express higher level vector ops in terms of more
+/// elementary extraction, insertion, reduction, product, and broadcast ops.
+void populateVectorContractLoweringPatterns(OwningRewritePatternList &patterns,
+                                            MLIRContext *context);
 
 /// Returns the integer type required for subscripts in the vector dialect.
 IntegerType getVectorSubscriptType(Builder &builder);

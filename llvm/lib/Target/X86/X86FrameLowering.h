@@ -60,7 +60,7 @@ public:
 
   void emitCalleeSavedFrameMoves(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator MBBI,
-                                 const DebugLoc &DL) const;
+                                 const DebugLoc &DL, bool IsPrologue) const;
 
   /// emitProlog/emitEpilog - These methods insert prolog and epilog code into
   /// the function.
@@ -86,10 +86,11 @@ public:
                                  ArrayRef<CalleeSavedInfo> CSI,
                                  const TargetRegisterInfo *TRI) const override;
 
-  bool restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
-                                  MachineBasicBlock::iterator MI,
-                                  std::vector<CalleeSavedInfo> &CSI,
-                                  const TargetRegisterInfo *TRI) const override;
+  bool
+  restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
+                              MachineBasicBlock::iterator MI,
+                              MutableArrayRef<CalleeSavedInfo> CSI,
+                              const TargetRegisterInfo *TRI) const override;
 
   bool hasFP(const MachineFunction &MF) const override;
   bool hasReservedCallFrame(const MachineFunction &MF) const override;
@@ -195,11 +196,33 @@ private:
   void emitStackProbeInline(MachineFunction &MF, MachineBasicBlock &MBB,
                             MachineBasicBlock::iterator MBBI,
                             const DebugLoc &DL, bool InProlog) const;
+  void emitStackProbeInlineWindowsCoreCLR64(MachineFunction &MF,
+                                            MachineBasicBlock &MBB,
+                                            MachineBasicBlock::iterator MBBI,
+                                            const DebugLoc &DL,
+                                            bool InProlog) const;
+  void emitStackProbeInlineGeneric(MachineFunction &MF, MachineBasicBlock &MBB,
+                                   MachineBasicBlock::iterator MBBI,
+                                   const DebugLoc &DL, bool InProlog) const;
+
+  void emitStackProbeInlineGenericBlock(MachineFunction &MF,
+                                        MachineBasicBlock &MBB,
+                                        MachineBasicBlock::iterator MBBI,
+                                        const DebugLoc &DL,
+                                        uint64_t Offset) const;
+
+  void emitStackProbeInlineGenericLoop(MachineFunction &MF,
+                                       MachineBasicBlock &MBB,
+                                       MachineBasicBlock::iterator MBBI,
+                                       const DebugLoc &DL,
+                                       uint64_t Offset) const;
 
   /// Emit a stub to later inline the target stack probe.
-  void emitStackProbeInlineStub(MachineFunction &MF, MachineBasicBlock &MBB,
-                                MachineBasicBlock::iterator MBBI,
-                                const DebugLoc &DL, bool InProlog) const;
+  MachineInstr *emitStackProbeInlineStub(MachineFunction &MF,
+                                         MachineBasicBlock &MBB,
+                                         MachineBasicBlock::iterator MBBI,
+                                         const DebugLoc &DL,
+                                         bool InProlog) const;
 
   /// Aligns the stack pointer by ANDing it with -MaxAlign.
   void BuildStackAlignAND(MachineBasicBlock &MBB,

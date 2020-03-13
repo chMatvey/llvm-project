@@ -48,10 +48,9 @@ define <16 x float> @test3(<16 x float> %x) nounwind {
 define <8 x i64> @test4(<8 x i64> %x) nounwind {
 ; CHECK-LABEL: test4:
 ; CHECK:       ## %bb.0:
-; CHECK-NEXT:    vextracti32x4 $2, %zmm0, %xmm1
-; CHECK-NEXT:    vmovq %xmm1, %rax
-; CHECK-NEXT:    vpinsrq $1, %rax, %xmm0, %xmm1
-; CHECK-NEXT:    vinserti32x4 $0, %xmm1, %zmm0, %zmm0
+; CHECK-NEXT:    vextractf32x4 $2, %zmm0, %xmm1
+; CHECK-NEXT:    vmovlhps {{.*#+}} xmm1 = xmm0[0],xmm1[0]
+; CHECK-NEXT:    vinsertf32x4 $0, %xmm1, %zmm0, %zmm0
 ; CHECK-NEXT:    retq
   %eee = extractelement <8 x i64> %x, i32 4
   %rrr2 = insertelement <8 x i64> %x, i64 %eee, i32 1
@@ -2264,15 +2263,15 @@ define i128 @test_insertelement_variable_v128i1(<128 x i8> %a, i8 %b, i32 %index
 define void @test_concat_v2i1(<2 x half>* %arg, <2 x half>* %arg1, <2 x half>* %arg2) {
 ; KNL-LABEL: test_concat_v2i1:
 ; KNL:       ## %bb.0:
-; KNL-NEXT:    movswl 2(%rdi), %eax
-; KNL-NEXT:    vmovd %eax, %xmm0
+; KNL-NEXT:    movzwl (%rdi), %eax
+; KNL-NEXT:    movzwl 2(%rdi), %ecx
+; KNL-NEXT:    vmovd %ecx, %xmm0
 ; KNL-NEXT:    vcvtph2ps %xmm0, %xmm0
 ; KNL-NEXT:    vmovss {{.*#+}} xmm1 = mem[0],zero,zero,zero
 ; KNL-NEXT:    vucomiss %xmm1, %xmm0
-; KNL-NEXT:    setb %al
-; KNL-NEXT:    kmovw %eax, %k0
+; KNL-NEXT:    setb %cl
+; KNL-NEXT:    kmovw %ecx, %k0
 ; KNL-NEXT:    kshiftlw $1, %k0, %k0
-; KNL-NEXT:    movswl (%rdi), %eax
 ; KNL-NEXT:    vmovd %eax, %xmm2
 ; KNL-NEXT:    vcvtph2ps %xmm2, %xmm2
 ; KNL-NEXT:    vucomiss %xmm1, %xmm2
@@ -2312,15 +2311,15 @@ define void @test_concat_v2i1(<2 x half>* %arg, <2 x half>* %arg1, <2 x half>* %
 ;
 ; SKX-LABEL: test_concat_v2i1:
 ; SKX:       ## %bb.0:
-; SKX-NEXT:    movswl 2(%rdi), %eax
-; SKX-NEXT:    vmovd %eax, %xmm0
+; SKX-NEXT:    movzwl (%rdi), %eax
+; SKX-NEXT:    movzwl 2(%rdi), %ecx
+; SKX-NEXT:    vmovd %ecx, %xmm0
 ; SKX-NEXT:    vcvtph2ps %xmm0, %xmm0
 ; SKX-NEXT:    vmovss {{.*#+}} xmm1 = mem[0],zero,zero,zero
 ; SKX-NEXT:    vucomiss %xmm1, %xmm0
-; SKX-NEXT:    setb %al
-; SKX-NEXT:    kmovd %eax, %k0
+; SKX-NEXT:    setb %cl
+; SKX-NEXT:    kmovd %ecx, %k0
 ; SKX-NEXT:    kshiftlb $1, %k0, %k0
-; SKX-NEXT:    movswl (%rdi), %eax
 ; SKX-NEXT:    vmovd %eax, %xmm2
 ; SKX-NEXT:    vcvtph2ps %xmm2, %xmm2
 ; SKX-NEXT:    vucomiss %xmm1, %xmm2

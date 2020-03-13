@@ -63,58 +63,6 @@ getNarrowTypeBreakDown(LLT OrigTy, LLT NarrowTy, LLT &LeftoverTy) {
   return std::make_pair(NumParts, NumLeftover);
 }
 
-static LLT getGCDType(LLT OrigTy, LLT TargetTy) {
-  if (OrigTy.isVector() && TargetTy.isVector()) {
-    assert(OrigTy.getElementType() == TargetTy.getElementType());
-    int GCD = greatestCommonDivisor(OrigTy.getNumElements(),
-                                    TargetTy.getNumElements());
-    return LLT::scalarOrVector(GCD, OrigTy.getElementType());
-  }
-
-  if (OrigTy.isVector() && !TargetTy.isVector()) {
-    assert(OrigTy.getElementType() == TargetTy);
-    return TargetTy;
-  }
-
-  assert(!OrigTy.isVector() && !TargetTy.isVector() &&
-         "GCD type of vector and scalar not implemented");
-
-  int GCD = greatestCommonDivisor(OrigTy.getSizeInBits(),
-                                  TargetTy.getSizeInBits());
-  return LLT::scalar(GCD);
-}
-
-static LLT getLCMType(LLT Ty0, LLT Ty1) {
-  if (!Ty0.isVector() && !Ty1.isVector()) {
-    unsigned Mul = Ty0.getSizeInBits() * Ty1.getSizeInBits();
-    int GCDSize = greatestCommonDivisor(Ty0.getSizeInBits(),
-                                        Ty1.getSizeInBits());
-    return LLT::scalar(Mul / GCDSize);
-  }
-
-  if (Ty0.isVector() && !Ty1.isVector()) {
-    assert(Ty0.getElementType() == Ty1 && "not yet handled");
-    return Ty0;
-  }
-
-  if (Ty1.isVector() && !Ty0.isVector()) {
-    assert(Ty1.getElementType() == Ty0 && "not yet handled");
-    return Ty1;
-  }
-
-  if (Ty0.isVector() && Ty1.isVector()) {
-    assert(Ty0.getElementType() == Ty1.getElementType() && "not yet handled");
-
-    int GCDElts = greatestCommonDivisor(Ty0.getNumElements(),
-                                        Ty1.getNumElements());
-
-    int Mul = Ty0.getNumElements() * Ty1.getNumElements();
-    return LLT::vector(Mul / GCDElts, Ty0.getElementType());
-  }
-
-  llvm_unreachable("not yet handled");
-}
-
 static Type *getFloatTypeForLLT(LLVMContext &Ctx, LLT Ty) {
 
   if (!Ty.isScalar())
@@ -435,91 +383,75 @@ void LegalizerHelper::buildWidenedRemergeToDst(Register DstReg, LLT LCMTy,
 }
 
 static RTLIB::Libcall getRTLibDesc(unsigned Opcode, unsigned Size) {
+#define RTLIBCASE(LibcallPrefix)                                               \
+  do {                                                                         \
+    switch (Size) {                                                            \
+    case 32:                                                                   \
+      return RTLIB::LibcallPrefix##32;                                         \
+    case 64:                                                                   \
+      return RTLIB::LibcallPrefix##64;                                         \
+    case 128:                                                                  \
+      return RTLIB::LibcallPrefix##128;                                        \
+    default:                                                                   \
+      llvm_unreachable("unexpected size");                                     \
+    }                                                                          \
+  } while (0)
+
+  assert((Size == 32 || Size == 64 || Size == 128) && "Unsupported size");
+
   switch (Opcode) {
   case TargetOpcode::G_SDIV:
-    assert((Size == 32 || Size == 64 || Size == 128) && "Unsupported size");
-    switch (Size) {
-    case 32:
-      return RTLIB::SDIV_I32;
-    case 64:
-      return RTLIB::SDIV_I64;
-    case 128:
-      return RTLIB::SDIV_I128;
-    default:
-      llvm_unreachable("unexpected size");
-    }
+    RTLIBCASE(SDIV_I);
   case TargetOpcode::G_UDIV:
-    assert((Size == 32 || Size == 64 || Size == 128) && "Unsupported size");
-    switch (Size) {
-    case 32:
-      return RTLIB::UDIV_I32;
-    case 64:
-      return RTLIB::UDIV_I64;
-    case 128:
-      return RTLIB::UDIV_I128;
-    default:
-      llvm_unreachable("unexpected size");
-    }
+    RTLIBCASE(UDIV_I);
   case TargetOpcode::G_SREM:
-    assert((Size == 32 || Size == 64) && "Unsupported size");
-    return Size == 64 ? RTLIB::SREM_I64 : RTLIB::SREM_I32;
+    RTLIBCASE(SREM_I);
   case TargetOpcode::G_UREM:
-    assert((Size == 32 || Size == 64) && "Unsupported size");
-    return Size == 64 ? RTLIB::UREM_I64 : RTLIB::UREM_I32;
+    RTLIBCASE(UREM_I);
   case TargetOpcode::G_CTLZ_ZERO_UNDEF:
-    assert(Size == 32 && "Unsupported size");
-    return RTLIB::CTLZ_I32;
+    RTLIBCASE(CTLZ_I);
   case TargetOpcode::G_FADD:
-    assert((Size == 32 || Size == 64) && "Unsupported size");
-    return Size == 64 ? RTLIB::ADD_F64 : RTLIB::ADD_F32;
+    RTLIBCASE(ADD_F);
   case TargetOpcode::G_FSUB:
-    assert((Size == 32 || Size == 64) && "Unsupported size");
-    return Size == 64 ? RTLIB::SUB_F64 : RTLIB::SUB_F32;
+    RTLIBCASE(SUB_F);
   case TargetOpcode::G_FMUL:
-    assert((Size == 32 || Size == 64) && "Unsupported size");
-    return Size == 64 ? RTLIB::MUL_F64 : RTLIB::MUL_F32;
+    RTLIBCASE(MUL_F);
   case TargetOpcode::G_FDIV:
-    assert((Size == 32 || Size == 64) && "Unsupported size");
-    return Size == 64 ? RTLIB::DIV_F64 : RTLIB::DIV_F32;
+    RTLIBCASE(DIV_F);
   case TargetOpcode::G_FEXP:
-    assert((Size == 32 || Size == 64) && "Unsupported size");
-    return Size == 64 ? RTLIB::EXP_F64 : RTLIB::EXP_F32;
+    RTLIBCASE(EXP_F);
   case TargetOpcode::G_FEXP2:
-    assert((Size == 32 || Size == 64) && "Unsupported size");
-    return Size == 64 ? RTLIB::EXP2_F64 : RTLIB::EXP2_F32;
+    RTLIBCASE(EXP2_F);
   case TargetOpcode::G_FREM:
-    return Size == 64 ? RTLIB::REM_F64 : RTLIB::REM_F32;
+    RTLIBCASE(REM_F);
   case TargetOpcode::G_FPOW:
-    return Size == 64 ? RTLIB::POW_F64 : RTLIB::POW_F32;
+    RTLIBCASE(POW_F);
   case TargetOpcode::G_FMA:
-    assert((Size == 32 || Size == 64) && "Unsupported size");
-    return Size == 64 ? RTLIB::FMA_F64 : RTLIB::FMA_F32;
+    RTLIBCASE(FMA_F);
   case TargetOpcode::G_FSIN:
-    assert((Size == 32 || Size == 64 || Size == 128) && "Unsupported size");
-    return Size == 128 ? RTLIB::SIN_F128
-                       : Size == 64 ? RTLIB::SIN_F64 : RTLIB::SIN_F32;
+    RTLIBCASE(SIN_F);
   case TargetOpcode::G_FCOS:
-    assert((Size == 32 || Size == 64 || Size == 128) && "Unsupported size");
-    return Size == 128 ? RTLIB::COS_F128
-                       : Size == 64 ? RTLIB::COS_F64 : RTLIB::COS_F32;
+    RTLIBCASE(COS_F);
   case TargetOpcode::G_FLOG10:
-    assert((Size == 32 || Size == 64 || Size == 128) && "Unsupported size");
-    return Size == 128 ? RTLIB::LOG10_F128
-                       : Size == 64 ? RTLIB::LOG10_F64 : RTLIB::LOG10_F32;
+    RTLIBCASE(LOG10_F);
   case TargetOpcode::G_FLOG:
-    assert((Size == 32 || Size == 64 || Size == 128) && "Unsupported size");
-    return Size == 128 ? RTLIB::LOG_F128
-                       : Size == 64 ? RTLIB::LOG_F64 : RTLIB::LOG_F32;
+    RTLIBCASE(LOG_F);
   case TargetOpcode::G_FLOG2:
-    assert((Size == 32 || Size == 64 || Size == 128) && "Unsupported size");
-    return Size == 128 ? RTLIB::LOG2_F128
-                       : Size == 64 ? RTLIB::LOG2_F64 : RTLIB::LOG2_F32;
+    RTLIBCASE(LOG2_F);
   case TargetOpcode::G_FCEIL:
-    assert((Size == 32 || Size == 64) && "Unsupported size");
-    return Size == 64 ? RTLIB::CEIL_F64 : RTLIB::CEIL_F32;
+    RTLIBCASE(CEIL_F);
   case TargetOpcode::G_FFLOOR:
-    assert((Size == 32 || Size == 64) && "Unsupported size");
-    return Size == 64 ? RTLIB::FLOOR_F64 : RTLIB::FLOOR_F32;
+    RTLIBCASE(FLOOR_F);
+  case TargetOpcode::G_FMINNUM:
+    RTLIBCASE(FMIN_F);
+  case TargetOpcode::G_FMAXNUM:
+    RTLIBCASE(FMAX_F);
+  case TargetOpcode::G_FSQRT:
+    RTLIBCASE(SQRT_F);
+  case TargetOpcode::G_FRINT:
+    RTLIBCASE(RINT_F);
+  case TargetOpcode::G_FNEARBYINT:
+    RTLIBCASE(NEARBYINT_F);
   }
   llvm_unreachable("Unknown libcall function");
 }
@@ -720,9 +652,14 @@ LegalizerHelper::libcall(MachineInstr &MI) {
   case TargetOpcode::G_FEXP:
   case TargetOpcode::G_FEXP2:
   case TargetOpcode::G_FCEIL:
-  case TargetOpcode::G_FFLOOR: {
+  case TargetOpcode::G_FFLOOR:
+  case TargetOpcode::G_FMINNUM:
+  case TargetOpcode::G_FMAXNUM:
+  case TargetOpcode::G_FSQRT:
+  case TargetOpcode::G_FRINT:
+  case TargetOpcode::G_FNEARBYINT: {
     Type *HLTy = getFloatTypeForLLT(Ctx, LLTy);
-    if (!HLTy || (Size != 32 && Size != 64)) {
+    if (!HLTy || (Size != 32 && Size != 64 && Size != 128)) {
       LLVM_DEBUG(dbgs() << "No libcall available for size " << Size << ".\n");
       return UnableToLegalize;
     }
@@ -1028,8 +965,10 @@ LegalizerHelper::LegalizeResult LegalizerHelper::narrowScalar(MachineInstr &MI,
     if (TypeIdx == 1)
       switch (MI.getOpcode()) {
       case TargetOpcode::G_CTLZ:
+      case TargetOpcode::G_CTLZ_ZERO_UNDEF:
         return narrowScalarCTLZ(MI, TypeIdx, NarrowTy);
       case TargetOpcode::G_CTTZ:
+      case TargetOpcode::G_CTTZ_ZERO_UNDEF:
         return narrowScalarCTTZ(MI, TypeIdx, NarrowTy);
       case TargetOpcode::G_CTPOP:
         return narrowScalarCTPOP(MI, TypeIdx, NarrowTy);
@@ -2172,13 +2111,12 @@ LegalizerHelper::lower(MachineInstr &MI, unsigned TypeIdx, LLT Ty) {
     return lowerBitcast(MI);
   case TargetOpcode::G_SREM:
   case TargetOpcode::G_UREM: {
-    Register QuotReg = MRI.createGenericVirtualRegister(Ty);
-    MIRBuilder.buildInstr(MI.getOpcode() == G_SREM ? G_SDIV : G_UDIV, {QuotReg},
-                          {MI.getOperand(1), MI.getOperand(2)});
+    auto Quot =
+        MIRBuilder.buildInstr(MI.getOpcode() == G_SREM ? G_SDIV : G_UDIV, {Ty},
+                              {MI.getOperand(1), MI.getOperand(2)});
 
-    Register ProdReg = MRI.createGenericVirtualRegister(Ty);
-    MIRBuilder.buildMul(ProdReg, QuotReg, MI.getOperand(2));
-    MIRBuilder.buildSub(MI.getOperand(0), MI.getOperand(1), ProdReg);
+    auto Prod = MIRBuilder.buildMul(Ty, Quot, MI.getOperand(2));
+    MIRBuilder.buildSub(MI.getOperand(0), MI.getOperand(1), Prod);
     MI.eraseFromParent();
     return Legalized;
   }
@@ -2207,9 +2145,7 @@ LegalizerHelper::lower(MachineInstr &MI, unsigned TypeIdx, LLT Ty) {
     MIRBuilder.setInsertPt(MIRBuilder.getMBB(), ++MIRBuilder.getInsertPt());
 
     auto HiPart = MIRBuilder.buildInstr(Opcode, {Ty}, {LHS, RHS});
-
-    Register Zero = MRI.createGenericVirtualRegister(Ty);
-    MIRBuilder.buildConstant(Zero, 0);
+    auto Zero = MIRBuilder.buildConstant(Ty, 0);
 
     // For *signed* multiply, overflow is detected by checking:
     // (hi != (lo >> bitwidth-1))
@@ -2431,12 +2367,10 @@ LegalizerHelper::lower(MachineInstr &MI, unsigned TypeIdx, LLT Ty) {
     Register LHS = MI.getOperand(2).getReg();
     Register RHS = MI.getOperand(3).getReg();
     Register CarryIn = MI.getOperand(4).getReg();
+    LLT Ty = MRI.getType(Res);
 
-    Register TmpRes = MRI.createGenericVirtualRegister(Ty);
-    Register ZExtCarryIn = MRI.createGenericVirtualRegister(Ty);
-
-    MIRBuilder.buildAdd(TmpRes, LHS, RHS);
-    MIRBuilder.buildZExt(ZExtCarryIn, CarryIn);
+    auto TmpRes = MIRBuilder.buildAdd(Ty, LHS, RHS);
+    auto ZExtCarryIn = MIRBuilder.buildZExt(Ty, CarryIn);
     MIRBuilder.buildAdd(Res, TmpRes, ZExtCarryIn);
     MIRBuilder.buildICmp(CmpInst::ICMP_ULT, CarryOut, Res, LHS);
 
@@ -2461,17 +2395,15 @@ LegalizerHelper::lower(MachineInstr &MI, unsigned TypeIdx, LLT Ty) {
     Register LHS = MI.getOperand(2).getReg();
     Register RHS = MI.getOperand(3).getReg();
     Register BorrowIn = MI.getOperand(4).getReg();
+    const LLT CondTy = MRI.getType(BorrowOut);
+    const LLT Ty = MRI.getType(Res);
 
-    Register TmpRes = MRI.createGenericVirtualRegister(Ty);
-    Register ZExtBorrowIn = MRI.createGenericVirtualRegister(Ty);
-    Register LHS_EQ_RHS = MRI.createGenericVirtualRegister(LLT::scalar(1));
-    Register LHS_ULT_RHS = MRI.createGenericVirtualRegister(LLT::scalar(1));
-
-    MIRBuilder.buildSub(TmpRes, LHS, RHS);
-    MIRBuilder.buildZExt(ZExtBorrowIn, BorrowIn);
+    auto TmpRes = MIRBuilder.buildSub(Ty, LHS, RHS);
+    auto ZExtBorrowIn = MIRBuilder.buildZExt(Ty, BorrowIn);
     MIRBuilder.buildSub(Res, TmpRes, ZExtBorrowIn);
-    MIRBuilder.buildICmp(CmpInst::ICMP_EQ, LHS_EQ_RHS, LHS, RHS);
-    MIRBuilder.buildICmp(CmpInst::ICMP_ULT, LHS_ULT_RHS, LHS, RHS);
+
+    auto LHS_EQ_RHS = MIRBuilder.buildICmp(CmpInst::ICMP_EQ, CondTy, LHS, RHS);
+    auto LHS_ULT_RHS = MIRBuilder.buildICmp(CmpInst::ICMP_ULT, CondTy, LHS, RHS);
     MIRBuilder.buildSelect(BorrowOut, LHS_EQ_RHS, BorrowIn, LHS_ULT_RHS);
 
     MI.eraseFromParent();
@@ -2485,6 +2417,8 @@ LegalizerHelper::lower(MachineInstr &MI, unsigned TypeIdx, LLT Ty) {
     return lowerFPTOUI(MI, TypeIdx, Ty);
   case G_FPTOSI:
     return lowerFPTOSI(MI);
+  case G_FPTRUNC:
+    return lowerFPTRUNC(MI, TypeIdx, Ty);
   case G_SMIN:
   case G_SMAX:
   case G_UMIN:
@@ -2558,93 +2492,75 @@ LegalizerHelper::LegalizeResult LegalizerHelper::fewerElementsVectorImplicitDef(
   return Legalized;
 }
 
+// Handles operands with different types, but all must have the same number of
+// elements. There will be multiple type indexes. NarrowTy is expected to have
+// the result element type.
 LegalizerHelper::LegalizeResult
 LegalizerHelper::fewerElementsVectorBasic(MachineInstr &MI, unsigned TypeIdx,
                                           LLT NarrowTy) {
+  assert(TypeIdx == 0 && "only one type index expected");
+
   const unsigned Opc = MI.getOpcode();
-  const unsigned NumOps = MI.getNumOperands() - 1;
-  const unsigned NarrowSize = NarrowTy.getSizeInBits();
+  const int NumOps = MI.getNumOperands() - 1;
   const Register DstReg = MI.getOperand(0).getReg();
   const unsigned Flags = MI.getFlags();
+
+  assert(NumOps <= 3 && "expected instrution with 1 result and 1-3 sources");
+
+  SmallVector<Register, 8> ExtractedRegs[3];
+  SmallVector<Register, 8> Parts;
+
+  unsigned NarrowElts = NarrowTy.isVector() ? NarrowTy.getNumElements() : 1;
+
+  // Break down all the sources into NarrowTy pieces we can operate on. This may
+  // involve creating merges to a wider type, padded with undef.
+  for (int I = 0; I != NumOps; ++I) {
+    Register SrcReg =  MI.getOperand(I + 1).getReg();
+    LLT SrcTy = MRI.getType(SrcReg);
+
+    // Each operand may have its own type, but only the number of elements
+    // matters.
+    LLT OpNarrowTy = LLT::scalarOrVector(NarrowElts, SrcTy.getScalarType());
+    LLT GCDTy = extractGCDType(ExtractedRegs[I], SrcTy, OpNarrowTy, SrcReg);
+
+    // Build a sequence of NarrowTy pieces in ExtractedRegs for this operand.
+    buildLCMMergePieces(SrcTy, OpNarrowTy, GCDTy,
+                        ExtractedRegs[I], TargetOpcode::G_ANYEXT);
+  }
+
+  SmallVector<Register, 8> ResultRegs;
+
+  // Input operands for each sub-instruction.
+  SmallVector<SrcOp, 4> InputRegs(NumOps, Register());
+
+  int NumParts = ExtractedRegs[0].size();
   const LLT DstTy = MRI.getType(DstReg);
-  const unsigned Size = DstTy.getSizeInBits();
-  const int NumParts = Size / NarrowSize;
-  const LLT EltTy = DstTy.getElementType();
-  const unsigned EltSize = EltTy.getSizeInBits();
-  const unsigned BitsForNumParts = NarrowSize * NumParts;
+  const unsigned DstSize = DstTy.getSizeInBits();
+  LLT DstLCMTy = getLCMType(DstTy, NarrowTy);
 
-  // Check if we have any leftovers. If we do, then only handle the case where
-  // the leftover is one element.
-  if (BitsForNumParts != Size && BitsForNumParts + EltSize != Size)
-    return UnableToLegalize;
+  const unsigned NarrowSize = NarrowTy.getSizeInBits();
 
-  if (BitsForNumParts != Size) {
-    Register AccumDstReg = MRI.createGenericVirtualRegister(DstTy);
-    MIRBuilder.buildUndef(AccumDstReg);
+  // We widened the source registers to satisfy merge/unmerge size
+  // constraints. We'll have some extra fully undef parts.
+  const int NumRealParts = (DstSize + NarrowSize - 1) / NarrowSize;
 
-    // Handle the pieces which evenly divide into the requested type with
-    // extract/op/insert sequence.
-    for (unsigned Offset = 0; Offset < BitsForNumParts; Offset += NarrowSize) {
-      SmallVector<SrcOp, 4> SrcOps;
-      for (unsigned I = 1, E = MI.getNumOperands(); I != E; ++I) {
-        Register PartOpReg = MRI.createGenericVirtualRegister(NarrowTy);
-        MIRBuilder.buildExtract(PartOpReg, MI.getOperand(I), Offset);
-        SrcOps.push_back(PartOpReg);
-      }
+  for (int I = 0; I != NumRealParts; ++I) {
+    // Emit this instruction on each of the split pieces.
+    for (int J = 0; J != NumOps; ++J)
+      InputRegs[J] = ExtractedRegs[J][I];
 
-      Register PartDstReg = MRI.createGenericVirtualRegister(NarrowTy);
-      MIRBuilder.buildInstr(Opc, {PartDstReg}, SrcOps, Flags);
-
-      Register PartInsertReg = MRI.createGenericVirtualRegister(DstTy);
-      MIRBuilder.buildInsert(PartInsertReg, AccumDstReg, PartDstReg, Offset);
-      AccumDstReg = PartInsertReg;
-    }
-
-    // Handle the remaining element sized leftover piece.
-    SmallVector<SrcOp, 4> SrcOps;
-    for (unsigned I = 1, E = MI.getNumOperands(); I != E; ++I) {
-      Register PartOpReg = MRI.createGenericVirtualRegister(EltTy);
-      MIRBuilder.buildExtract(PartOpReg, MI.getOperand(I), BitsForNumParts);
-      SrcOps.push_back(PartOpReg);
-    }
-
-    Register PartDstReg = MRI.createGenericVirtualRegister(EltTy);
-    MIRBuilder.buildInstr(Opc, {PartDstReg}, SrcOps, Flags);
-    MIRBuilder.buildInsert(DstReg, AccumDstReg, PartDstReg, BitsForNumParts);
-    MI.eraseFromParent();
-
-    return Legalized;
+    auto Inst = MIRBuilder.buildInstr(Opc, {NarrowTy}, InputRegs, Flags);
+    ResultRegs.push_back(Inst.getReg(0));
   }
 
-  SmallVector<Register, 2> DstRegs, Src0Regs, Src1Regs, Src2Regs;
+  // Fill out the widened result with undef instead of creating instructions
+  // with undef inputs.
+  int NumUndefParts = NumParts - NumRealParts;
+  if (NumUndefParts != 0)
+    ResultRegs.append(NumUndefParts, MIRBuilder.buildUndef(NarrowTy).getReg(0));
 
-  extractParts(MI.getOperand(1).getReg(), NarrowTy, NumParts, Src0Regs);
-
-  if (NumOps >= 2)
-    extractParts(MI.getOperand(2).getReg(), NarrowTy, NumParts, Src1Regs);
-
-  if (NumOps >= 3)
-    extractParts(MI.getOperand(3).getReg(), NarrowTy, NumParts, Src2Regs);
-
-  for (int i = 0; i < NumParts; ++i) {
-    Register DstReg = MRI.createGenericVirtualRegister(NarrowTy);
-
-    if (NumOps == 1)
-      MIRBuilder.buildInstr(Opc, {DstReg}, {Src0Regs[i]}, Flags);
-    else if (NumOps == 2) {
-      MIRBuilder.buildInstr(Opc, {DstReg}, {Src0Regs[i], Src1Regs[i]}, Flags);
-    } else if (NumOps == 3) {
-      MIRBuilder.buildInstr(Opc, {DstReg},
-                            {Src0Regs[i], Src1Regs[i], Src2Regs[i]}, Flags);
-    }
-
-    DstRegs.push_back(DstReg);
-  }
-
-  if (NarrowTy.isVector())
-    MIRBuilder.buildConcatVectors(DstReg, DstRegs);
-  else
-    MIRBuilder.buildBuildVector(DstReg, DstRegs);
+  // Extract the possibly padded result to the original result register.
+  buildWidenedRemergeToDst(DstReg, DstLCMTy, ResultRegs);
 
   MI.eraseFromParent();
   return Legalized;
@@ -3119,6 +3035,12 @@ LegalizerHelper::reduceLoadStoreWidth(MachineInstr &MI, unsigned TypeIdx,
   Register AddrReg = MI.getOperand(1).getReg();
   LLT ValTy = MRI.getType(ValReg);
 
+  // FIXME: Do we need a distinct NarrowMemory legalize action?
+  if (ValTy.getSizeInBits() != 8 * MMO->getSize()) {
+    LLVM_DEBUG(dbgs() << "Can't narrow extload/truncstore\n");
+    return UnableToLegalize;
+  }
+
   int NumParts = -1;
   int NumLeftover = -1;
   LLT LeftoverTy;
@@ -3217,6 +3139,7 @@ LegalizerHelper::fewerElementsVector(MachineInstr &MI, unsigned TypeIdx,
   switch (MI.getOpcode()) {
   case G_IMPLICIT_DEF:
     return fewerElementsVectorImplicitDef(MI, TypeIdx, NarrowTy);
+  case G_TRUNC:
   case G_AND:
   case G_OR:
   case G_XOR:
@@ -3780,10 +3703,12 @@ LegalizerHelper::narrowScalarExtract(MachineInstr &MI, unsigned TypeIdx,
   }
 
   Register DstReg = MI.getOperand(0).getReg();
-  if(MRI.getType(DstReg).isVector())
+  if (MRI.getType(DstReg).isVector())
     MIRBuilder.buildBuildVector(DstReg, DstRegs);
-  else
+  else if (DstRegs.size() > 1)
     MIRBuilder.buildMerge(DstReg, DstRegs);
+  else
+    MIRBuilder.buildCopy(DstReg, DstRegs[0]);
   MI.eraseFromParent();
   return Legalized;
 }
@@ -3978,23 +3903,28 @@ LegalizerHelper::narrowScalarCTLZ(MachineInstr &MI, unsigned TypeIdx,
   if (TypeIdx != 1)
     return UnableToLegalize;
 
-  LLT SrcTy = MRI.getType(MI.getOperand(1).getReg());
+  Register DstReg = MI.getOperand(0).getReg();
+  Register SrcReg = MI.getOperand(1).getReg();
+  LLT DstTy = MRI.getType(DstReg);
+  LLT SrcTy = MRI.getType(SrcReg);
   unsigned NarrowSize = NarrowTy.getSizeInBits();
 
   if (SrcTy.isScalar() && SrcTy.getSizeInBits() == 2 * NarrowSize) {
+    const bool IsUndef = MI.getOpcode() == TargetOpcode::G_CTLZ_ZERO_UNDEF;
+
     MachineIRBuilder &B = MIRBuilder;
-    auto UnmergeSrc = B.buildUnmerge(NarrowTy, MI.getOperand(1));
+    auto UnmergeSrc = B.buildUnmerge(NarrowTy, SrcReg);
     // ctlz(Hi:Lo) -> Hi == 0 ? (NarrowSize + ctlz(Lo)) : ctlz(Hi)
     auto C_0 = B.buildConstant(NarrowTy, 0);
     auto HiIsZero = B.buildICmp(CmpInst::ICMP_EQ, LLT::scalar(1),
                                 UnmergeSrc.getReg(1), C_0);
-    auto LoCTLZ = B.buildCTLZ(NarrowTy, UnmergeSrc.getReg(0));
-    auto C_NarrowSize = B.buildConstant(NarrowTy, NarrowSize);
-    auto HiIsZeroCTLZ = B.buildAdd(NarrowTy, LoCTLZ, C_NarrowSize);
-    auto HiCTLZ = B.buildCTLZ_ZERO_UNDEF(NarrowTy, UnmergeSrc.getReg(1));
-    auto LoOut = B.buildSelect(NarrowTy, HiIsZero, HiIsZeroCTLZ, HiCTLZ);
-
-    B.buildMerge(MI.getOperand(0), {LoOut, C_0});
+    auto LoCTLZ = IsUndef ?
+      B.buildCTLZ_ZERO_UNDEF(DstTy, UnmergeSrc.getReg(0)) :
+      B.buildCTLZ(DstTy, UnmergeSrc.getReg(0));
+    auto C_NarrowSize = B.buildConstant(DstTy, NarrowSize);
+    auto HiIsZeroCTLZ = B.buildAdd(DstTy, LoCTLZ, C_NarrowSize);
+    auto HiCTLZ = B.buildCTLZ_ZERO_UNDEF(DstTy, UnmergeSrc.getReg(1));
+    B.buildSelect(DstReg, HiIsZero, HiIsZeroCTLZ, HiCTLZ);
 
     MI.eraseFromParent();
     return Legalized;
@@ -4009,23 +3939,28 @@ LegalizerHelper::narrowScalarCTTZ(MachineInstr &MI, unsigned TypeIdx,
   if (TypeIdx != 1)
     return UnableToLegalize;
 
-  LLT SrcTy = MRI.getType(MI.getOperand(1).getReg());
+  Register DstReg = MI.getOperand(0).getReg();
+  Register SrcReg = MI.getOperand(1).getReg();
+  LLT DstTy = MRI.getType(DstReg);
+  LLT SrcTy = MRI.getType(SrcReg);
   unsigned NarrowSize = NarrowTy.getSizeInBits();
 
   if (SrcTy.isScalar() && SrcTy.getSizeInBits() == 2 * NarrowSize) {
+    const bool IsUndef = MI.getOpcode() == TargetOpcode::G_CTTZ_ZERO_UNDEF;
+
     MachineIRBuilder &B = MIRBuilder;
-    auto UnmergeSrc = B.buildUnmerge(NarrowTy, MI.getOperand(1));
+    auto UnmergeSrc = B.buildUnmerge(NarrowTy, SrcReg);
     // cttz(Hi:Lo) -> Lo == 0 ? (cttz(Hi) + NarrowSize) : cttz(Lo)
     auto C_0 = B.buildConstant(NarrowTy, 0);
     auto LoIsZero = B.buildICmp(CmpInst::ICMP_EQ, LLT::scalar(1),
                                 UnmergeSrc.getReg(0), C_0);
-    auto HiCTTZ = B.buildCTTZ(NarrowTy, UnmergeSrc.getReg(1));
-    auto C_NarrowSize = B.buildConstant(NarrowTy, NarrowSize);
-    auto LoIsZeroCTTZ = B.buildAdd(NarrowTy, HiCTTZ, C_NarrowSize);
-    auto LoCTTZ = B.buildCTTZ_ZERO_UNDEF(NarrowTy, UnmergeSrc.getReg(0));
-    auto LoOut = B.buildSelect(NarrowTy, LoIsZero, LoIsZeroCTTZ, LoCTTZ);
-
-    B.buildMerge(MI.getOperand(0), {LoOut, C_0});
+    auto HiCTTZ = IsUndef ?
+      B.buildCTTZ_ZERO_UNDEF(DstTy, UnmergeSrc.getReg(1)) :
+      B.buildCTTZ(DstTy, UnmergeSrc.getReg(1));
+    auto C_NarrowSize = B.buildConstant(DstTy, NarrowSize);
+    auto LoIsZeroCTTZ = B.buildAdd(DstTy, HiCTTZ, C_NarrowSize);
+    auto LoCTTZ = B.buildCTTZ_ZERO_UNDEF(DstTy, UnmergeSrc.getReg(0));
+    B.buildSelect(DstReg, LoIsZero, LoIsZeroCTTZ, LoCTTZ);
 
     MI.eraseFromParent();
     return Legalized;
@@ -4462,6 +4397,128 @@ LegalizerHelper::LegalizeResult LegalizerHelper::lowerFPTOSI(MachineInstr &MI) {
 
   MI.eraseFromParent();
   return Legalized;
+}
+
+// f64 -> f16 conversion using round-to-nearest-even rounding mode.
+LegalizerHelper::LegalizeResult
+LegalizerHelper::lowerFPTRUNC_F64_TO_F16(MachineInstr &MI) {
+  Register Dst = MI.getOperand(0).getReg();
+  Register Src = MI.getOperand(1).getReg();
+
+  if (MRI.getType(Src).isVector()) // TODO: Handle vectors directly.
+    return UnableToLegalize;
+
+  const unsigned ExpMask = 0x7ff;
+  const unsigned ExpBiasf64 = 1023;
+  const unsigned ExpBiasf16 = 15;
+  const LLT S32 = LLT::scalar(32);
+  const LLT S1 = LLT::scalar(1);
+
+  auto Unmerge = MIRBuilder.buildUnmerge(S32, Src);
+  Register U = Unmerge.getReg(0);
+  Register UH = Unmerge.getReg(1);
+
+  auto E = MIRBuilder.buildLShr(S32, UH, MIRBuilder.buildConstant(S32, 20));
+
+  // Subtract the fp64 exponent bias (1023) to get the real exponent and
+  // add the f16 bias (15) to get the biased exponent for the f16 format.
+  E = MIRBuilder.buildAdd(
+    S32, E, MIRBuilder.buildConstant(S32, -ExpBiasf64 + ExpBiasf16));
+  E = MIRBuilder.buildAnd(S32, E, MIRBuilder.buildConstant(S32, ExpMask));
+
+  auto M = MIRBuilder.buildLShr(S32, UH, MIRBuilder.buildConstant(S32, 8));
+  M = MIRBuilder.buildAnd(S32, M, MIRBuilder.buildConstant(S32, 0xffe));
+
+  auto MaskedSig = MIRBuilder.buildAnd(S32, UH,
+                                       MIRBuilder.buildConstant(S32, 0x1ff));
+  MaskedSig = MIRBuilder.buildOr(S32, MaskedSig, U);
+
+  auto Zero = MIRBuilder.buildConstant(S32, 0);
+  auto SigCmpNE0 = MIRBuilder.buildICmp(CmpInst::ICMP_NE, S1, MaskedSig, Zero);
+  auto Lo40Set = MIRBuilder.buildZExt(S32, SigCmpNE0);
+  M = MIRBuilder.buildOr(S32, M, Lo40Set);
+
+  // (M != 0 ? 0x0200 : 0) | 0x7c00;
+  auto Bits0x200 = MIRBuilder.buildConstant(S32, 0x0200);
+  auto CmpM_NE0 = MIRBuilder.buildICmp(CmpInst::ICMP_NE, S1, M, Zero);
+  auto SelectCC = MIRBuilder.buildSelect(S32, CmpM_NE0, Bits0x200, Zero);
+
+  auto Bits0x7c00 = MIRBuilder.buildConstant(S32, 0x7c00);
+  auto I = MIRBuilder.buildOr(S32, SelectCC, Bits0x7c00);
+
+  // N = M | (E << 12);
+  auto EShl12 = MIRBuilder.buildShl(S32, E, MIRBuilder.buildConstant(S32, 12));
+  auto N = MIRBuilder.buildOr(S32, M, EShl12);
+
+  // B = clamp(1-E, 0, 13);
+  auto One = MIRBuilder.buildConstant(S32, 1);
+  auto OneSubExp = MIRBuilder.buildSub(S32, One, E);
+  auto B = MIRBuilder.buildSMax(S32, OneSubExp, Zero);
+  B = MIRBuilder.buildSMin(S32, B, MIRBuilder.buildConstant(S32, 13));
+
+  auto SigSetHigh = MIRBuilder.buildOr(S32, M,
+                                       MIRBuilder.buildConstant(S32, 0x1000));
+
+  auto D = MIRBuilder.buildLShr(S32, SigSetHigh, B);
+  auto D0 = MIRBuilder.buildShl(S32, D, B);
+
+  auto D0_NE_SigSetHigh = MIRBuilder.buildICmp(CmpInst::ICMP_NE, S1,
+                                             D0, SigSetHigh);
+  auto D1 = MIRBuilder.buildZExt(S32, D0_NE_SigSetHigh);
+  D = MIRBuilder.buildOr(S32, D, D1);
+
+  auto CmpELtOne = MIRBuilder.buildICmp(CmpInst::ICMP_SLT, S1, E, One);
+  auto V = MIRBuilder.buildSelect(S32, CmpELtOne, D, N);
+
+  auto VLow3 = MIRBuilder.buildAnd(S32, V, MIRBuilder.buildConstant(S32, 7));
+  V = MIRBuilder.buildLShr(S32, V, MIRBuilder.buildConstant(S32, 2));
+
+  auto VLow3Eq3 = MIRBuilder.buildICmp(CmpInst::ICMP_EQ, S1, VLow3,
+                                       MIRBuilder.buildConstant(S32, 3));
+  auto V0 = MIRBuilder.buildZExt(S32, VLow3Eq3);
+
+  auto VLow3Gt5 = MIRBuilder.buildICmp(CmpInst::ICMP_SGT, S1, VLow3,
+                                       MIRBuilder.buildConstant(S32, 5));
+  auto V1 = MIRBuilder.buildZExt(S32, VLow3Gt5);
+
+  V1 = MIRBuilder.buildOr(S32, V0, V1);
+  V = MIRBuilder.buildAdd(S32, V, V1);
+
+  auto CmpEGt30 = MIRBuilder.buildICmp(CmpInst::ICMP_SGT,  S1,
+                                       E, MIRBuilder.buildConstant(S32, 30));
+  V = MIRBuilder.buildSelect(S32, CmpEGt30,
+                             MIRBuilder.buildConstant(S32, 0x7c00), V);
+
+  auto CmpEGt1039 = MIRBuilder.buildICmp(CmpInst::ICMP_EQ, S1,
+                                         E, MIRBuilder.buildConstant(S32, 1039));
+  V = MIRBuilder.buildSelect(S32, CmpEGt1039, I, V);
+
+  // Extract the sign bit.
+  auto Sign = MIRBuilder.buildLShr(S32, UH, MIRBuilder.buildConstant(S32, 16));
+  Sign = MIRBuilder.buildAnd(S32, Sign, MIRBuilder.buildConstant(S32, 0x8000));
+
+  // Insert the sign bit
+  V = MIRBuilder.buildOr(S32, Sign, V);
+
+  MIRBuilder.buildTrunc(Dst, V);
+  MI.eraseFromParent();
+  return Legalized;
+}
+
+LegalizerHelper::LegalizeResult
+LegalizerHelper::lowerFPTRUNC(MachineInstr &MI, unsigned TypeIdx, LLT Ty) {
+  Register Dst = MI.getOperand(0).getReg();
+  Register Src = MI.getOperand(1).getReg();
+
+  LLT DstTy = MRI.getType(Dst);
+  LLT SrcTy = MRI.getType(Src);
+  const LLT S64 = LLT::scalar(64);
+  const LLT S16 = LLT::scalar(16);
+
+  if (DstTy.getScalarType() == S16 && SrcTy.getScalarType() == S64)
+    return lowerFPTRUNC_F64_TO_F16(MI);
+
+  return UnableToLegalize;
 }
 
 static CmpInst::Predicate minMaxToCompare(unsigned Opc) {

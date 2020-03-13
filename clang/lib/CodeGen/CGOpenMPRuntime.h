@@ -26,6 +26,7 @@
 #include "llvm/Frontend/OpenMP/OMPConstants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/ValueHandle.h"
+#include "llvm/Support/AtomicOrdering.h"
 
 namespace llvm {
 class ArrayType;
@@ -80,11 +81,10 @@ public:
   template <typename Callable>
   RegionCodeGenTy(
       Callable &&CodeGen,
-      typename std::enable_if<
-          !std::is_same<typename std::remove_reference<Callable>::type,
-                        RegionCodeGenTy>::value>::type * = nullptr)
+      std::enable_if_t<!std::is_same<std::remove_reference_t<Callable>,
+                                     RegionCodeGenTy>::value> * = nullptr)
       : CodeGen(reinterpret_cast<intptr_t>(&CodeGen)),
-        Callback(CallbackFn<typename std::remove_reference<Callable>::type>),
+        Callback(CallbackFn<std::remove_reference_t<Callable>>),
         PrePostAction(nullptr) {}
   void setAction(PrePostActionTy &Action) const { PrePostAction = &Action; }
   void operator()(CodeGenFunction &CGF) const;
@@ -705,6 +705,9 @@ private:
   /// directive is present.
   bool HasRequiresUnifiedSharedMemory = false;
 
+  /// Atomic ordering from the omp requires directive.
+  llvm::AtomicOrdering RequiresAtomicOrdering = llvm::AtomicOrdering::Monotonic;
+
   /// Flag for keeping track of weather a target region has been emitted.
   bool HasEmittedTargetRegion = false;
 
@@ -851,6 +854,14 @@ private:
   void emitLastprivateConditionalUpdate(CodeGenFunction &CGF, LValue IVLVal,
                                         StringRef UniqueDeclName, LValue LVal,
                                         SourceLocation Loc);
+
+  /// Returns the number of the elements and the address of the depobj
+  /// dependency array.
+  /// \return Number of elements in depobj array and the pointer to the array of
+  /// dependencies.
+  std::pair<llvm::Value *, LValue> getDepobjElements(CodeGenFunction &CGF,
+                                                     LValue DepobjLVal,
+                                                     SourceLocation Loc);
 
 public:
   explicit CGOpenMPRuntime(CodeGenModule &CGM)
@@ -1701,7 +1712,10 @@ public:
 
   /// Perform check on requires decl to ensure that target architecture
   /// supports unified addressing
-  virtual void checkArchForUnifiedAddressing(const OMPRequiresDecl *D);
+  virtual void processRequiresDirective(const OMPRequiresDecl *D);
+
+  /// Gets default memory ordering as specified in requires directive.
+  llvm::AtomicOrdering getDefaultMemoryOrdering() const;
 
   /// Checks if the variable has associated OMPAllocateDeclAttr attribute with
   /// the predefined allocator and translates it into the corresponding address
@@ -1770,6 +1784,27 @@ public:
                                                      LValue PrivLVal,
                                                      const VarDecl *VD,
                                                      SourceLocation Loc);
+
+  /// Emits list of dependecies based on the provided data (array of
+  /// dependence/expression pairs).
+  /// \param ForDepobj true if the memory for depencies is alloacted for depobj
+  /// directive. In this case, the variable is allocated in dynamically.
+  /// \returns Pointer to the first element of the array casted to VoidPtr type.
+  std::pair<llvm::Value *, Address> emitDependClause(
+      CodeGenFunction &CGF,
+      ArrayRef<std::pair<OpenMPDependClauseKind, const Expr *>> Dependencies,
+      bool ForDepobj, SourceLocation Loc);
+
+  /// Emits the code to destroy the dependency object provided in depobj
+  /// directive.
+  void emitDestroyClause(CodeGenFunction &CGF, LValue DepobjLVal,
+                         SourceLocation Loc);
+
+  /// Updates the dependency kind in the specified depobj object.
+  /// \param DepobjLVal LValue for the main depobj object.
+  /// \param NewDepKind New dependency kind.
+  void emitUpdateClause(CodeGenFunction &CGF, LValue DepobjLVal,
+                        OpenMPDependClauseKind NewDepKind, SourceLocation Loc);
 };
 
 /// Class supports emissionof SIMD-only code.

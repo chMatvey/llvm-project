@@ -15,6 +15,7 @@
 #define SPIRV_BIT_OPS
 
 include "mlir/Dialect/SPIRV/SPIRVBase.td"
+include "mlir/Interfaces/SideEffects.td"
 
 class SPV_BitBinaryOp<string mnemonic, list<OpTrait> traits = []> :
       // All the operands type used in bit instructions are SPV_Integer.
@@ -23,7 +24,8 @@ class SPV_BitBinaryOp<string mnemonic, list<OpTrait> traits = []> :
                                [NoSideEffect, SameOperandsAndResultType])>;
 
 class SPV_BitFieldExtractOp<string mnemonic, list<OpTrait> traits = []> :
-      SPV_Op<mnemonic, !listconcat(traits, [NoSideEffect])> {
+      SPV_Op<mnemonic, !listconcat(traits,
+             [NoSideEffect, AllTypesMatch<["base", "result"]>])> {
   let arguments = (ins
     SPV_ScalarOrVectorOf<SPV_Integer>:$base,
     SPV_Integer:$offset,
@@ -34,9 +36,11 @@ class SPV_BitFieldExtractOp<string mnemonic, list<OpTrait> traits = []> :
     SPV_ScalarOrVectorOf<SPV_Integer>:$result
   );
 
-  let parser = [{ return ::parseBitFieldExtractOp(parser, result); }];
-  let printer = [{ ::printBitFieldExtractOp(this->getOperation(), p); }];
-  let verifier = [{ return ::verifyBitFieldExtractOp(this->getOperation()); }];
+  let verifier = [{ return success(); }];
+
+  let assemblyFormat = [{
+    operands attr-dict `:` type($base) `,` type($offset) `,` type($count)
+  }];
 }
 
 class SPV_BitUnaryOp<string mnemonic, list<OpTrait> traits = []> :

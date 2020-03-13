@@ -1,4 +1,4 @@
-//===- Statistics.cpp ------------------------------------------- *- C++ *-===//
+//===-- Statistics.cpp - Debug Info quality metrics -----------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -502,7 +502,7 @@ static void printLocationStats(raw_ostream &OS,
 /// useful, only the delta between compiling the same program with different
 /// compilers is.
 bool collectStatsForObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
-                               Twine Filename, raw_ostream &OS) {
+                               const Twine &Filename, raw_ostream &OS) {
   StringRef FormatName = Obj.getFileFormatName();
   GlobalStats GlobalStats;
   LocationStats LocStats;
