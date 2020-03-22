@@ -49,6 +49,8 @@
 
 #include <stdarg.h>
 
+#include "custom_deadlock_detector.h"
+
 #if SANITIZER_INTERCEPTOR_HOOKS
 #define CALL_WEAK_INTERCEPTOR_HOOK(f, ...) f(__VA_ARGS__);
 #define DECLARE_WEAK_INTERCEPTOR_HOOK(f, ...) \
@@ -4151,11 +4153,13 @@ INTERCEPTOR(void, _exit, int status) {
 INTERCEPTOR(int, pthread_mutex_lock, void *m) {
   void *ctx;
   COMMON_INTERCEPTOR_ENTER(ctx, pthread_mutex_lock, m);
+  custom_mutex_pre_lock_interceptor(ctx, m);
   COMMON_INTERCEPTOR_MUTEX_PRE_LOCK(ctx, m);
   int res = REAL(pthread_mutex_lock)(m);
   if (res == errno_EOWNERDEAD)
     COMMON_INTERCEPTOR_MUTEX_REPAIR(ctx, m);
   if (res == 0 || res == errno_EOWNERDEAD)
+    custom_mutex_post_lock_interceptor(ctx, m);
     COMMON_INTERCEPTOR_MUTEX_POST_LOCK(ctx, m);
   if (res == errno_EINVAL)
     COMMON_INTERCEPTOR_MUTEX_INVALID(ctx, m);
@@ -4165,6 +4169,7 @@ INTERCEPTOR(int, pthread_mutex_lock, void *m) {
 INTERCEPTOR(int, pthread_mutex_unlock, void *m) {
   void *ctx;
   COMMON_INTERCEPTOR_ENTER(ctx, pthread_mutex_unlock, m);
+  custom_mutex_unlock_interceptor(ctx, m);
   COMMON_INTERCEPTOR_MUTEX_UNLOCK(ctx, m);
   int res = REAL(pthread_mutex_unlock)(m);
   if (res == errno_EINVAL)
