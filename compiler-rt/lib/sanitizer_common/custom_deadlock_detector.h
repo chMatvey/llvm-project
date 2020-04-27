@@ -202,13 +202,17 @@ public:
 
 struct custom_thread_info {
     void* thread = nullptr;
-    custom_list<void *> lock;
-    void *wait = nullptr;
+    custom_list<void *> locked_mutexes;
+    void *waiting_mutex = nullptr;
 };
 
 bool operator==(const custom_thread_info& first, const custom_thread_info& second);
 
 extern custom_map<void *, custom_thread_info *> custom_thread_pool;
+
+extern void *custom_pool_mutex_attrib;
+
+extern void *custom_pool_mutex;
 
 custom_thread_info *custom_detector_get_thread_info(void* thread);
 
