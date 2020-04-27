@@ -6,7 +6,6 @@ bool operator==(const custom_thread_info& first, const custom_thread_info& secon
 
 custom_map<void *, custom_thread_info *> custom_thread_pool;
 
-//need to implemented initialize
 void *custom_pool_mutex_attrib = nullptr;
 
 void *custom_pool_mutex = nullptr;
