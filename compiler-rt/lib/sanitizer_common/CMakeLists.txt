@@ -40,6 +40,7 @@ set(SANITIZER_SOURCES_NOTERMINATION
   sanitizer_thread_registry.cpp
   sanitizer_type_traits.cpp
   sanitizer_win.cpp
+  custom_deadlock_detector.cpp
   )
 
 set(SANITIZER_SOURCES
@@ -191,6 +192,7 @@ set(SANITIZER_IMPL_HEADERS
   sanitizer_win_defs.h
   sanitizer_win_dll_thunk.h
   sanitizer_win_weak_interception.h
+  custom_deadlock_detector.h
   )
 
 include_directories(..)

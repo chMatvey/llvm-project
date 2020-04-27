@@ -54,3 +54,8 @@ autoconf/autom4te.cache
 .vs
 # clangd index
 .clangd
+#clion
+.idea
+
+#custom deadlock-detector
+compiler-rt/lib/sanitizer_common/cmake-build-debug/
