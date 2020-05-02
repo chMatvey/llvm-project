@@ -19,6 +19,7 @@
 #include "tsan_report.h"
 #include "tsan_symbolize.h"
 #include "tsan_platform.h"
+#include "thread_sheduler/thread_scheduler.h"
 
 namespace __tsan {
 
@@ -208,6 +209,8 @@ void MutexPostLock(ThreadState *thr, uptr pc, uptr addr, u32 flagz, int rec) {
     Callback cb(thr, pc);
     ReportDeadlock(thr, pc, ctx->dd->GetReport(&cb));
   }
+  GetThreadScheduler().synchronizeLockMutex(thr->tid);
+  GetThreadScheduler().afterSynchronize(thr->tid);
 }
 
 int MutexUnlock(ThreadState *thr, uptr pc, uptr addr, u32 flagz) {
