@@ -54,6 +54,7 @@ set(TSAN_SOURCES
   rtl/tsan_suppressions.cpp
   rtl/tsan_symbolize.cpp
   rtl/tsan_sync.cpp
+  rtl/thread_sheduler/thread_scheduler.cpp
   )
 
 set(TSAN_CXX_SOURCES
@@ -108,7 +109,9 @@ set(TSAN_HEADERS
   rtl/tsan_symbolize.h
   rtl/tsan_sync.h
   rtl/tsan_trace.h
-  rtl/tsan_update_shadow_word_inl.h)
+  rtl/tsan_update_shadow_word_inl.h
+  rtl/thread_sheduler/thread_scheduler.h
+  rtl/thread_sheduler/structures/custom_structures.h)
 
 set(TSAN_RUNTIME_LIBRARIES)
 add_compiler_rt_component(tsan)

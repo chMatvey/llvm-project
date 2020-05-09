@@ -30,6 +30,7 @@
 #include "tsan_rtl.h"
 #include "tsan_mman.h"
 #include "tsan_fd.h"
+#include "thread_sheduler/thread_scheduler.h"
 
 using namespace __tsan;
 
@@ -949,11 +950,14 @@ extern "C" void *__tsan_thread_start_func(void *arg) {
     ThreadStart(thr, tid, GetTid(), ThreadType::Regular);
     atomic_store(&p->tid, 0, memory_order_release);
   }
+  GetThreadScheduler().afterSynchronize(tid);
   void *res = callback(param);
   // Prevent the callback from being tail called,
   // it mixes up stack traces.
   volatile int foo = 42;
   foo++;
+  GetThreadScheduler().synchronizeCompleteThread(tid);
+  GetThreadScheduler().afterSynchronize(tid);
   return res;
 }
 
@@ -987,6 +991,7 @@ TSAN_INTERCEPTOR(int, pthread_create,
   p.callback = callback;
   p.param = param;
   atomic_store(&p.tid, 0, memory_order_relaxed);
+  GetThreadScheduler().synchronizeCreateThread(thr->tid);
   int res = -1;
   {
     // Otherwise we see false positives in pthread stack manipulation.
@@ -1009,6 +1014,7 @@ TSAN_INTERCEPTOR(int, pthread_create,
     while (atomic_load(&p.tid, memory_order_acquire) != 0)
       internal_sched_yield();
   }
+  GetThreadScheduler().afterSynchronize(thr->tid);
   if (attr == &myattr)
     pthread_attr_destroy(&myattr);
   return res;
