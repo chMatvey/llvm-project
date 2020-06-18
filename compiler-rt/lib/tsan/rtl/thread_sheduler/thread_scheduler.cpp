@@ -1,5 +1,5 @@
 #include "thread_scheduler.h"
-#include "structures/custom_structures.h"
+#include "util/TS_Queue.h"
 
 #include <rtl/tsan_rtl.h>
 #include <sanitizer_common/sanitizer_allocator_internal.h>
@@ -7,6 +7,8 @@
 #include <cstring>
 #include <cstdlib>
 #include <unistd.h>
+
+using  namespace __tsan::ts::util;
 
 namespace __tsan {
     TS_ThreadInfo threadInfo[65536] = {};

@@ -111,7 +111,14 @@ set(TSAN_HEADERS
   rtl/tsan_trace.h
   rtl/tsan_update_shadow_word_inl.h
   rtl/thread_sheduler/thread_scheduler.h
-  rtl/thread_sheduler/structures/custom_structures.h)
+  rtl/thread_sheduler/util/TS_FIleManager.h
+  rtl/thread_sheduler/util/TS_Entry.h
+  rtl/thread_sheduler/util/TS_Queue.h
+  rtl/thread_sheduler/util/TS_List.h
+  rtl/thread_sheduler/util/TS_Iterable.h
+  rtl/thread_sheduler/util/TS_Map.h
+  rtl/thread_sheduler/util/TS_Iterator.h
+)
 
 set(TSAN_RUNTIME_LIBRARIES)
 add_compiler_rt_component(tsan)
