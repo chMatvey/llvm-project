@@ -118,6 +118,9 @@ set(TSAN_HEADERS
   rtl/thread_sheduler/util/TS_Iterable.h
   rtl/thread_sheduler/util/TS_Map.h
   rtl/thread_sheduler/util/TS_Iterator.h
+  rtl/thread_sheduler/lexer/TS_Token.h
+  rtl/thread_sheduler/lexer/TS_State.h
+  rtl/thread_sheduler/lexer/TS_Lexer.h
 )
 
 set(TSAN_RUNTIME_LIBRARIES)
