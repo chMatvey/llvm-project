@@ -67,7 +67,7 @@ namespace __tsan::ts::util {
                 size--;
             } else {
                 auto *node = head;
-                while (node->next != nullptr && node->key != key) {
+                while (node->next != nullptr && node->next->key != key) {
                     node = node->next;
                 }
                 if (node->next != nullptr) {

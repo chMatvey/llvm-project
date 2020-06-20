@@ -5,8 +5,7 @@
 #include "TS_State.h"
 
 namespace __tsan::ts::lexer {
-    class TS_Token {
-    public:
+    struct TS_Token {
         TS_State state;
         const char *value;
 

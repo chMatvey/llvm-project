@@ -5,10 +5,10 @@
 #include "../util/TS_Map.h"
 #include "../util/TS_Queue.h"
 #include "TS_State.h"
+
 #include <regex.h>
 #include <cstring>
 #include "TS_Token.h"
-#include <string.h>
 
 namespace __tsan::ts::lexer {
     using namespace __tsan::ts::util;
@@ -56,7 +56,7 @@ namespace __tsan::ts::lexer {
             rules.add(TS_State::ID, rulesFromID);
         }
 
-        bool checkRegex(const char *pattern, const char *str) {
+        static bool checkRegex(const char *pattern, const char *str) {
             regex_t regex;
             int reti;
             char msgbuf[100];
@@ -113,6 +113,10 @@ namespace __tsan::ts::lexer {
         }
 
         TS_Queue<TS_Token *> *scan(const char *str) {
+            if (str == nullptr) {
+                return nullptr;
+            }
+
             auto currentState = TS_State::H;
             auto *result = new TS_Queue<TS_Token *>();
             result->add(new TS_Token(TS_State::H, ""));
@@ -146,6 +150,11 @@ namespace __tsan::ts::lexer {
                     tokenBuffer[tokenBufferIndex] = str[i];
                     tokenBufferIndex++;
                 }
+            }
+
+            if (result->getLast()->state != TS_State::ID && result->getLast()->state != TS_State::ACT_T && result->getLast()->state != TS_State::ACT_M) {
+                handleError(result->getLast()->value);
+                return nullptr;
             }
 
             return result;

@@ -4,9 +4,10 @@
 
 #include "TS_Iterable.h"
 #include "TS_Entry.h"
+#include "TS_Comparator.h"
 
 namespace __tsan::ts::util {
-    template <typename K, typename V>
+    template<typename K, typename V>
     class TS_Map : TS_Iterable<TS_Entry<K, V>> {
     private:
         class TS_MapNode {
@@ -19,14 +20,17 @@ namespace __tsan::ts::util {
         TS_MapNode *head = nullptr;
         TS_MapNode *tail = nullptr;
         int size = 0;
+        TS_Comparator<K> *comparator = nullptr;
 
     public:
         TS_Map() {}
 
+        TS_Map(TS_Comparator<K> *comparator) : comparator(comparator) {}
+
         V search(K key) {
             TS_MapNode *node = head;
             while (node != nullptr) {
-                if (node->key == key) {
+                if (node->key == key || (comparator != nullptr && comparator->compare(node->key, key) == 0)) {
                     return node->value;
                 }
                 node = node->next;
@@ -67,16 +71,26 @@ namespace __tsan::ts::util {
                 size--;
             } else {
                 auto *node = head;
-                while (node->next != nullptr && node->key != key) {
-                    node = node->next;
+                if (comparator == nullptr) {
+                    while (node->next != nullptr && node->next->key != key) {
+                        node = node->next;
+                    }
+                } else {
+                    while (node->next != nullptr && comparator->compare(node->next->key, key) != 0) {
+                        node = node->next;
+                    }
                 }
                 if (node->next != nullptr) {
                     node->next = node->next->next;
                     size--;
                 }
 
-                delete  node;
+                delete node;
             }
+        }
+
+        void setComparator(TS_Comparator<K> *tsComparator) {
+            comparator = tsComparator;
         }
 
         TS_Iterator<TS_Entry<K, V>> iterator() override {

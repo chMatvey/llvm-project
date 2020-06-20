@@ -14,7 +14,7 @@ namespace __tsan::ts::util {
 
         TS_QueueNode *head = nullptr;
         TS_QueueNode *tail = nullptr;
-        int size = 0;
+        int size = 0;;
 
     public:
         bool isEmpty() {
@@ -48,6 +48,10 @@ namespace __tsan::ts::util {
             head = head->next;
             size--;
             delete old;
+        }
+
+        T getLast() {
+            return tail->key;
         }
     };
 }
