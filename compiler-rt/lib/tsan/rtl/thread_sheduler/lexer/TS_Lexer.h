@@ -5,10 +5,11 @@
 #include "../util/TS_Map.h"
 #include "../util/TS_Queue.h"
 #include "TS_State.h"
+#include "TS_Token.h"
 
 #include <regex.h>
 #include <cstring>
-#include "TS_Token.h"
+#include <sanitizer_common/sanitizer_allocator_internal.h>
 
 namespace __tsan::ts::lexer {
     using namespace __tsan::ts::util;
@@ -112,14 +113,14 @@ namespace __tsan::ts::lexer {
             initRules();
         }
 
-        TS_Queue<TS_Token *> *scan(const char *str) {
+        TS_Queue<TS_Token> *scan(const char *str) {
             if (str == nullptr) {
                 return nullptr;
             }
 
             auto currentState = TS_State::H;
-            auto *result = new TS_Queue<TS_Token *>();
-            result->add(new TS_Token(TS_State::H, ""));
+            auto *result = new TS_Queue<TS_Token>();
+            result->add({TS_State::H, ""});
 
             char tokenBuffer[tokenBufferSize];
             int tokenBufferIndex = 0;
@@ -132,9 +133,9 @@ namespace __tsan::ts::lexer {
                             handleError(tokenBuffer);
                             return nullptr;
                         } else {
-                            auto *tokenName = (char *) malloc(tokenBufferIndex + 1);
+                            auto *tokenName = static_cast<char *>(InternalCalloc(tokenBufferIndex + 1, sizeof(char)));
                             strcpy(tokenName, tokenBuffer);
-                            result->add(new TS_Token(currentState, tokenName));
+                            result->add({currentState, tokenName});
                         }
                         tokenBufferIndex = 0;
                     }
@@ -143,7 +144,7 @@ namespace __tsan::ts::lexer {
                         if (currentState == TS_State::UNKNOWN) {
                             handleError(tokenBuffer);
                         } else {
-                            result->add(new TS_Token(currentState, ":"));
+                            result->add({currentState, ":"});
                         }
                     }
                 } else {
@@ -152,8 +153,8 @@ namespace __tsan::ts::lexer {
                 }
             }
 
-            if (result->getLast()->state != TS_State::ID && result->getLast()->state != TS_State::ACT_T && result->getLast()->state != TS_State::ACT_M) {
-                handleError(result->getLast()->value);
+            if (result->getLast().state != TS_State::ID && result->getLast().state != TS_State::ACT_T && result->getLast().state != TS_State::ACT_M) {
+                handleError(result->getLast().value);
                 return nullptr;
             }
 

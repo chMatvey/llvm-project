@@ -6,6 +6,8 @@
 #include "TS_Entry.h"
 #include "TS_Comparator.h"
 
+#include <sanitizer_common/sanitizer_allocator_internal.h>
+
 namespace __tsan::ts::util {
     template<typename K, typename V>
     class TS_Map : TS_Iterable<TS_Entry<K, V>> {
@@ -61,7 +63,7 @@ namespace __tsan::ts::util {
         void remove(K key) {
             if (isEmpty()) {
                 return;
-            } else if (head->key == key) {
+            } else if (head->key == key || (comparator != nullptr && comparator->compare(head->key, key) == 0)) {
                 if (size == 1) {
                     head = nullptr;
                     tail = nullptr;
@@ -81,11 +83,11 @@ namespace __tsan::ts::util {
                     }
                 }
                 if (node->next != nullptr) {
+                    auto *removed = node->next;
                     node->next = node->next->next;
                     size--;
+                    delete removed;
                 }
-
-                delete node;
             }
         }
 
@@ -94,10 +96,10 @@ namespace __tsan::ts::util {
         }
 
         TS_Iterator<TS_Entry<K, V>> iterator() override {
-            auto *array = (TS_Entry<K, V> *) malloc(sizeof(TS_Entry<K, V>) * size);
+            auto *array = static_cast<TS_Entry<K, V> *>(InternalCalloc(size, sizeof(TS_Entry<K, V>)));
             auto node = head;
             for (int i = 0; i < size; i++) {
-                array[i] = TS_Entry(node->key, node->value);
+                array[i] = TS_Entry<K, V>(node->key, node->value);
                 node = node->next;
             }
 

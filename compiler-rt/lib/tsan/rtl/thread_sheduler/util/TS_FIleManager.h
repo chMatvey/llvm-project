@@ -22,7 +22,6 @@ namespace __tsan::ts::util {
         static const char *readFile(const char *path) {
             int fd = -1;
             ssize_t bytes_read = -1;
-            int i = 0;
 
             fd = open(path, O_RDONLY);
             if (fd == -1) {

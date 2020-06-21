@@ -8,7 +8,7 @@
 
 #include "../util/TS_Queue.h"
 #include "../util/TS_Map.h"
-#include "../thread-scheduler/TS_Point.h"
+#include "../TS_Point.h"
 #include "../lexer/TS_Token.h"
 #include "TS_StringComparator.h"
 
@@ -36,8 +36,8 @@ namespace __tsan::ts::parser {
             // todo handle error
         }
 
-        void H(TS_Queue<TS_Token *> *tokens, TS_Queue<TS_Point *> * result) {
-            if (tokens->getCurrent()->state != TS_State::H) {
+        void H(TS_Queue<TS_Token> *tokens, TS_Queue<TS_Point *> * result) {
+            if (tokens->getCurrent().state != TS_State::H) {
                 handleError();
                 return;
             }
@@ -49,7 +49,7 @@ namespace __tsan::ts::parser {
             if (tokens->isEmpty()) {
                 return;
             }
-            switch (tokens->getCurrent()->state) {
+            switch (tokens->getCurrent().state) {
                 case TS_State::TH: {
                     TH(tokens, result);
                     break;
@@ -61,8 +61,8 @@ namespace __tsan::ts::parser {
             }
         }
 
-        void TH(TS_Queue<TS_Token *> *tokens, TS_Queue<TS_Point *> *result) {
-            currentThreadIndex = threads.search(tokens->getCurrent()->value);
+        void TH(TS_Queue<TS_Token> *tokens, TS_Queue<TS_Point *> *result) {
+            currentThreadIndex = threads.search(tokens->getCurrent().value);
             if (currentThreadIndex == nullptr) {
                 handleError();
                 return;
@@ -75,7 +75,7 @@ namespace __tsan::ts::parser {
             if (tokens->isEmpty()) {
                 return;
             }
-            switch (tokens->getCurrent()->state) {
+            switch (tokens->getCurrent().state) {
                 case TS_State::COL: {
                     COL(tokens, result);
                     break;
@@ -87,12 +87,12 @@ namespace __tsan::ts::parser {
             }
         }
 
-        void COL(TS_Queue<TS_Token *> *tokens, TS_Queue<TS_Point *> *result) {
+        void COL(TS_Queue<TS_Token> *tokens, TS_Queue<TS_Point *> *result) {
             tokens->next();
             if (tokens->isEmpty()) {
                 return;
             }
-            switch (tokens->getCurrent()->state) {
+            switch (tokens->getCurrent().state) {
                 case TS_State::ACT_T: {
                     ACT_T(tokens, result);
                     break;
@@ -108,10 +108,10 @@ namespace __tsan::ts::parser {
             }
         }
 
-        void ACT_T(TS_Queue<TS_Token *> *tokens, TS_Queue<TS_Point *> *result) {
-            if (strcmp(tokens->getCurrent()->value, "create_thread") == 0) {
+        void ACT_T(TS_Queue<TS_Token> *tokens, TS_Queue<TS_Point *> *result) {
+            if (strcmp(tokens->getCurrent().value, "create_thread") == 0) {
                 result->add(new TS_Point(TS_Action::CREATE_THREAD, *currentThreadIndex, *currentThreadIndex));
-            } else if (strcmp(tokens->getCurrent()->value, "complete_thread") == 0) {
+            } else if (strcmp(tokens->getCurrent().value, "complete_thread") == 0) {
                 result->add(new TS_Point(TS_Action::COMPLETE_THREAD, *currentThreadIndex, *currentThreadIndex));
             } else {
                 handleError();
@@ -122,7 +122,7 @@ namespace __tsan::ts::parser {
             if (tokens->isEmpty()) {
                 return;
             }
-            switch (tokens->getCurrent()->state) {
+            switch (tokens->getCurrent().state) {
                 case TS_State::ID: {
                     ID(tokens, result);
                     break;
@@ -134,10 +134,10 @@ namespace __tsan::ts::parser {
             }
         }
 
-        void ACT_M(TS_Queue<TS_Token *> *tokens, TS_Queue<TS_Point *> *result) {
-            if (strcmp(tokens->getCurrent()->value, "mutex_lock") == 0) {
+        void ACT_M(TS_Queue<TS_Token> *tokens, TS_Queue<TS_Point *> *result) {
+            if (strcmp(tokens->getCurrent().value, "mutex_lock") == 0) {
                 result->add(new TS_Point(TS_Action::LOCK_MUTEX, *currentThreadIndex, *currentThreadIndex));
-            } else if (strcmp(tokens->getCurrent()->value, "mutex_unlock") == 0) {
+            } else if (strcmp(tokens->getCurrent().value, "mutex_unlock") == 0) {
                 result->add(new TS_Point(TS_Action::UNLOCK_MUTEX, *currentThreadIndex, *currentThreadIndex));
             } else {
                 handleError();
@@ -148,7 +148,7 @@ namespace __tsan::ts::parser {
             if (tokens->isEmpty()) {
                 return;
             }
-            switch (tokens->getCurrent()->state) {
+            switch (tokens->getCurrent().state) {
                 case TS_State::TH: {
                     TH(tokens, result);
                     break;
@@ -168,20 +168,20 @@ namespace __tsan::ts::parser {
             }
         }
 
-        void ID(TS_Queue<TS_Token *> *tokens, TS_Queue<TS_Point *> *result) {
+        void ID(TS_Queue<TS_Token> *tokens, TS_Queue<TS_Point *> *result) {
             if (result->getLast()->action == TS_Action::CREATE_THREAD) {
                 int index = newThreadIndex;
                 newThreadIndex++;
-                threads.add(tokens->getCurrent()->value, &index);
+                threads.add(tokens->getCurrent().value, &index);
             } else {
-                threads.remove(tokens->getCurrent()->value);
+                threads.remove(tokens->getCurrent().value);
             }
 
             tokens->next();
             if (tokens->isEmpty()) {
                 return;
             }
-            switch (tokens->getCurrent()->state) {
+            switch (tokens->getCurrent().state) {
                 case TS_State::TH: {
                     TH(tokens, result);
                     break;
@@ -202,7 +202,7 @@ namespace __tsan::ts::parser {
         }
 
     public:
-        TS_Queue<TS_Point *> *parse(TS_Queue<TS_Token *> *tokens) {
+        TS_Queue<TS_Point *> *parse(TS_Queue<TS_Token> *tokens) {
             if (tokens == nullptr || tokens->isEmpty()) {
                 return nullptr;
             }
