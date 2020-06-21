@@ -1968,8 +1968,8 @@ void ASTDeclReader::VisitCXXConversionDecl(CXXConversionDecl *D) {
 
 void ASTDeclReader::VisitImportDecl(ImportDecl *D) {
   VisitDecl(D);
-  D->ImportedAndComplete.setPointer(readModule());
-  D->ImportedAndComplete.setInt(Record.readInt());
+  D->ImportedModule = readModule();
+  D->setImportComplete(Record.readInt());
   auto *StoredLocs = D->getTrailingObjects<SourceLocation>();
   for (unsigned I = 0, N = Record.back(); I != N; ++I)
     StoredLocs[I] = readSourceLocation();
@@ -2744,6 +2744,8 @@ public:
     return Reader.readVersionTuple();
   }
 
+  OMPTraitInfo readOMPTraitInfo() { return Reader.readOMPTraitInfo(); }
+
   template <typename T> T *GetLocalDeclAs(uint32_t LocalID) {
     return Reader.GetLocalDeclAs<T>(LocalID);
   }
@@ -2828,7 +2830,8 @@ static bool isConsumerInterestedIn(ASTContext &Ctx, Decl *D, bool HasBody) {
       isa<PragmaDetectMismatchDecl>(D))
     return true;
   if (isa<OMPThreadPrivateDecl>(D) || isa<OMPDeclareReductionDecl>(D) ||
-      isa<OMPDeclareMapperDecl>(D) || isa<OMPAllocateDecl>(D))
+      isa<OMPDeclareMapperDecl>(D) || isa<OMPAllocateDecl>(D) ||
+      isa<OMPRequiresDecl>(D))
     return !D->getDeclContext()->isFunctionOrMethod();
   if (const auto *Var = dyn_cast<VarDecl>(D))
     return Var->isFileVarDecl() &&

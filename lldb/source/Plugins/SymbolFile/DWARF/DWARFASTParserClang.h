@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SymbolFileDWARF_DWARFASTParserClang_h_
-#define SymbolFileDWARF_DWARFASTParserClang_h_
+#ifndef LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFASTPARSERCLANG_H
+#define LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFASTPARSERCLANG_H
 
 #include "clang/AST/CharUnits.h"
 #include "llvm/ADT/DenseMap.h"
@@ -19,10 +19,10 @@
 #include "DWARFDefines.h"
 #include "DWARFFormValue.h"
 #include "LogChannelDWARF.h"
-#include "lldb/Core/ClangForward.h"
 #include "lldb/Core/PluginInterface.h"
-#include "lldb/Symbol/ClangASTContext.h"
-#include "lldb/Symbol/ClangASTImporter.h"
+
+#include "Plugins/ExpressionParser/Clang/ClangASTImporter.h"
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 
 #include <vector>
 
@@ -36,7 +36,7 @@ struct ParsedDWARFTypeAttributes;
 
 class DWARFASTParserClang : public DWARFASTParser {
 public:
-  DWARFASTParserClang(lldb_private::ClangASTContext &ast);
+  DWARFASTParserClang(lldb_private::TypeSystemClang &ast);
 
   ~DWARFASTParserClang() override;
 
@@ -82,7 +82,7 @@ protected:
       DIEToDeclMap;
   typedef llvm::DenseMap<const clang::Decl *, DIEPointerSet> DeclToDIEMap;
 
-  lldb_private::ClangASTContext &m_ast;
+  lldb_private::TypeSystemClang &m_ast;
   DIEToDeclMap m_die_to_decl;
   DeclToDIEMap m_decl_to_die;
   DIEToDeclContextMap m_die_to_decl_ctx;
@@ -97,11 +97,11 @@ protected:
   clang::NamespaceDecl *ResolveNamespaceDIE(const DWARFDIE &die);
 
   bool ParseTemplateDIE(const DWARFDIE &die,
-                        lldb_private::ClangASTContext::TemplateParameterInfos
+                        lldb_private::TypeSystemClang::TemplateParameterInfos
                             &template_param_infos);
   bool ParseTemplateParameterInfos(
       const DWARFDIE &parent_die,
-      lldb_private::ClangASTContext::TemplateParameterInfos
+      lldb_private::TypeSystemClang::TemplateParameterInfos
           &template_param_infos);
 
   bool ParseChildMembers(
@@ -251,4 +251,4 @@ struct ParsedDWARFTypeAttributes {
   uint32_t encoding = 0;
 };
 
-#endif // SymbolFileDWARF_DWARFASTParserClang_h_
+#endif // LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFASTPARSERCLANG_H

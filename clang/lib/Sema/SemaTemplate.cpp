@@ -1330,11 +1330,11 @@ NamedDecl *Sema::ActOnNonTypeTemplateParameter(Scope *S, Declarator &D,
   // Check that we have valid decl-specifiers specified.
   auto CheckValidDeclSpecifiers = [this, &D] {
     // C++ [temp.param]
-    // p1 
+    // p1
     //   template-parameter:
     //     ...
     //     parameter-declaration
-    // p2 
+    // p2
     //   ... A storage class shall not be specified in a template-parameter
     //   declaration.
     // [dcl.typedef]p1:
@@ -6782,7 +6782,7 @@ ExprResult Sema::CheckTemplateArgument(NonTypeTemplateParmDecl *Param,
       // -- a predefined __func__ variable
       APValue::LValueBase Base = Value.getLValueBase();
       auto *VD = const_cast<ValueDecl *>(Base.dyn_cast<const ValueDecl *>());
-      if (Base && !VD) {
+      if (Base && (!VD || isa<LifetimeExtendedTemporaryDecl>(VD))) {
         auto *E = Base.dyn_cast<const Expr *>();
         if (E && isa<CXXUuidofExpr>(E)) {
           Converted = TemplateArgument(ArgResult.get()->IgnoreImpCasts());
@@ -8389,7 +8389,7 @@ Decl *Sema::ActOnConceptDefinition(Scope *S,
   ConceptDecl *NewDecl = ConceptDecl::Create(Context, DC, NameLoc, Name,
                                              TemplateParameterLists.front(),
                                              ConstraintExpr);
-                                             
+
   if (NewDecl->hasAssociatedConstraints()) {
     // C++2a [temp.concept]p4:
     // A concept shall not have associated constraints.
@@ -10675,7 +10675,7 @@ Sema::getTemplateArgumentBindingsText(const TemplateParameterList *Params,
   }
 
   Out << ']';
-  return Out.str();
+  return std::string(Out.str());
 }
 
 void Sema::MarkAsLateParsedTemplate(FunctionDecl *FD, Decl *FnD,

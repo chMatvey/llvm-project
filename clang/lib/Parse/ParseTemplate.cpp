@@ -253,9 +253,9 @@ Decl *Parser::ParseSingleDeclarationAfterTemplate(
   }
 
   llvm::TimeTraceScope TimeScope("ParseTemplate", [&]() {
-    return DeclaratorInfo.getIdentifier() != nullptr
-               ? DeclaratorInfo.getIdentifier()->getName()
-               : "<unknown>";
+    return std::string(DeclaratorInfo.getIdentifier() != nullptr
+                           ? DeclaratorInfo.getIdentifier()->getName()
+                           : "<unknown>");
   });
 
   LateParsedAttrList LateParsedAttrs(true);
@@ -986,7 +986,7 @@ Parser::ParseNonTypeTemplateParameter(unsigned Depth, unsigned Position) {
 
   // Create the parameter.
   return Actions.ActOnNonTypeTemplateParameter(getCurScope(), ParamDecl,
-                                               Depth, Position, EqualLoc, 
+                                               Depth, Position, EqualLoc,
                                                DefaultArg.get());
 }
 

@@ -80,9 +80,9 @@ static void AddImplicitIncludeMacros(MacroBuilder &Builder, StringRef File) {
 static void AddImplicitIncludePCH(MacroBuilder &Builder, Preprocessor &PP,
                                   const PCHContainerReader &PCHContainerRdr,
                                   StringRef ImplicitIncludePCH) {
-  std::string OriginalFile =
-      ASTReader::getOriginalSourceFile(ImplicitIncludePCH, PP.getFileManager(),
-                                       PCHContainerRdr, PP.getDiagnostics());
+  std::string OriginalFile = ASTReader::getOriginalSourceFile(
+      std::string(ImplicitIncludePCH), PP.getFileManager(), PCHContainerRdr,
+      PP.getDiagnostics());
   if (OriginalFile.empty())
     return;
 
@@ -460,6 +460,13 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     if (LangOpts.FastRelaxedMath)
       Builder.defineMacro("__FAST_RELAXED_MATH__");
   }
+
+  if (LangOpts.SYCL) {
+    // SYCL Version is set to a value when building SYCL applications
+    if (LangOpts.SYCLVersion == 2017)
+      Builder.defineMacro("CL_SYCL_LANGUAGE_VERSION", "121");
+  }
+
   // Not "standard" per se, but available even with the -undef flag.
   if (LangOpts.AsmPreprocessor)
     Builder.defineMacro("__ASSEMBLER__");

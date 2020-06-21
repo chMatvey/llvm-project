@@ -220,8 +220,8 @@ void AMDGCN::constructHIPFatbinCommand(Compilation &C, const JobAction &JA,
   BundlerArgs.push_back(Args.MakeArgString(BundlerTargetArg));
   BundlerArgs.push_back(Args.MakeArgString(BundlerInputArg));
 
-  auto BundlerOutputArg =
-      Args.MakeArgString(std::string("-outputs=").append(OutputFileName));
+  auto BundlerOutputArg = Args.MakeArgString(
+      std::string("-outputs=").append(std::string(OutputFileName)));
   BundlerArgs.push_back(BundlerOutputArg);
 
   const char *Bundler = Args.MakeArgString(
@@ -288,10 +288,6 @@ void HIPToolChain::addClangTargetOptions(
   CC1Args.push_back(DriverArgs.MakeArgStringRef(GpuArch));
   CC1Args.push_back("-fcuda-is-device");
 
-  if (DriverArgs.hasFlag(options::OPT_fcuda_flush_denormals_to_zero,
-                         options::OPT_fno_cuda_flush_denormals_to_zero, false))
-    CC1Args.push_back("-fcuda-flush-denormals-to-zero");
-
   if (DriverArgs.hasFlag(options::OPT_fcuda_approx_transcendentals,
                          options::OPT_fno_cuda_approx_transcendentals, false))
     CC1Args.push_back("-fcuda-approx-transcendentals");
@@ -331,7 +327,7 @@ void HIPToolChain::addClangTargetOptions(
        DriverArgs.getAllArgValues(options::OPT_hip_device_lib_path_EQ))
     LibraryPaths.push_back(DriverArgs.MakeArgString(Path));
 
-  addDirectoryList(DriverArgs, LibraryPaths, "-L", "HIP_DEVICE_LIB_PATH");
+  addDirectoryList(DriverArgs, LibraryPaths, "", "HIP_DEVICE_LIB_PATH");
 
   llvm::SmallVector<std::string, 10> BCLibs;
 
@@ -360,10 +356,11 @@ void HIPToolChain::addClangTargetOptions(
       WaveFrontSizeBC = "oclc_wavefrontsize64_off.amdgcn.bc";
 
     BCLibs.append({"hip.amdgcn.bc", "ocml.amdgcn.bc", "ockl.amdgcn.bc",
-                   "oclc_finite_only_off.amdgcn.bc", FlushDenormalControlBC,
+                   "oclc_finite_only_off.amdgcn.bc",
+                   std::string(FlushDenormalControlBC),
                    "oclc_correctly_rounded_sqrt_on.amdgcn.bc",
                    "oclc_unsafe_math_off.amdgcn.bc", ISAVerBC,
-                   WaveFrontSizeBC});
+                   std::string(WaveFrontSizeBC)});
   }
   for (auto Lib : BCLibs)
     addBCLib(getDriver(), DriverArgs, CC1Args, LibraryPaths, Lib);

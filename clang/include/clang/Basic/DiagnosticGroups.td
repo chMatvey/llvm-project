@@ -99,6 +99,7 @@ def FloatConversion :
   DiagGroup<"float-conversion", [FloatOverflowConversion,
                                  FloatZeroConversion]>;
 
+def FrameAddress : DiagGroup<"frame-address">;
 def DoublePromotion : DiagGroup<"double-promotion">;
 def EnumTooLarge : DiagGroup<"enum-too-large">;
 def UnsupportedNan : DiagGroup<"unsupported-nan">;
@@ -192,6 +193,7 @@ def CXX20Designator : DiagGroup<"c++20-designator">;
 // designators (including the warning controlled by -Wc++20-designator).
 def C99Designator : DiagGroup<"c99-designator", [CXX20Designator]>;
 def GNUDesignator : DiagGroup<"gnu-designator">;
+def DtorName : DiagGroup<"dtor-name">;
 
 def DynamicExceptionSpec
     : DiagGroup<"dynamic-exception-spec", [DeprecatedDynamicExceptionSpec]>;
@@ -837,6 +839,13 @@ def IncompatibleExceptionSpec : DiagGroup<"incompatible-exception-spec">;
 def IntToVoidPointerCast : DiagGroup<"int-to-void-pointer-cast">;
 def IntToPointerCast : DiagGroup<"int-to-pointer-cast",
                                  [IntToVoidPointerCast]>;
+def VoidPointerToEnumCast : DiagGroup<"void-pointer-to-enum-cast">;
+def VoidPointerToIntCast : DiagGroup<"void-pointer-to-int-cast",
+                                     [VoidPointerToEnumCast]>;
+def PointerToEnumCast : DiagGroup<"pointer-to-enum-cast",
+                                  [VoidPointerToEnumCast]>;
+def PointerToIntCast : DiagGroup<"pointer-to-int-cast",
+                                 [PointerToEnumCast, VoidPointerToIntCast]>;
 
 def Move : DiagGroup<"move", [
     PessimizingMove,
@@ -864,6 +873,7 @@ def Most : DiagGroup<"most", [
     DeleteNonVirtualDtor,
     Format,
     ForLoopAnalysis,
+    FrameAddress,
     Implicit,
     InfiniteRecursion,
     IntInBoolContext,
@@ -1080,9 +1090,8 @@ def ObjCSignedCharBool : DiagGroup<"objc-signed-char-bool",
 
 // Inline ASM warnings.
 def ASMOperandWidths : DiagGroup<"asm-operand-widths">;
-def ASMIgnoredQualifier : DiagGroup<"asm-ignored-qualifier">;
 def ASM : DiagGroup<"asm", [
-    ASMOperandWidths, ASMIgnoredQualifier
+    ASMOperandWidths
   ]>;
 
 // OpenMP warnings.
@@ -1160,3 +1169,32 @@ def CrossTU : DiagGroup<"ctu">;
 def CTADMaybeUnsupported : DiagGroup<"ctad-maybe-unsupported">;
 
 def FortifySource : DiagGroup<"fortify-source">;
+
+def MaxTokens : DiagGroup<"max-tokens"> {
+  code Documentation = [{
+The warning is issued if the number of pre-processor tokens exceeds
+the token limit, which can be set in three ways:
+
+1. As a limit at a specific point in a file, using the ``clang max_tokens_here``
+  pragma:
+
+   .. code-block: c++
+      #pragma clang max_tokens_here 1234
+
+2. As a per-translation unit limit, using the ``-fmax-tokens=`` command-line
+   flag:
+
+   .. code-block: console
+      clang -c a.cpp -fmax-tokens=1234
+
+3. As a per-translation unit limit using the ``clang max_tokens_total`` pragma,
+   which works like and overrides the ``-fmax-tokens=`` flag:
+
+   .. code-block: c++
+      #pragma clang max_tokens_total 1234
+
+These limits can be helpful in limiting code growth through included files.
+
+Setting a token limit of zero means no limit.
+}];
+}

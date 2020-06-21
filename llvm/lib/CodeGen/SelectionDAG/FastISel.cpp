@@ -1350,13 +1350,15 @@ bool FastISel::selectIntrinsicCall(const IntrinsicInst *II) {
     const DbgDeclareInst *DI = cast<DbgDeclareInst>(II);
     assert(DI->getVariable() && "Missing variable");
     if (!FuncInfo.MF->getMMI().hasDebugInfo()) {
-      LLVM_DEBUG(dbgs() << "Dropping debug info for " << *DI << "\n");
+      LLVM_DEBUG(dbgs() << "Dropping debug info for " << *DI
+                        << " (!hasDebugInfo)\n");
       return true;
     }
 
     const Value *Address = DI->getAddress();
     if (!Address || isa<UndefValue>(Address)) {
-      LLVM_DEBUG(dbgs() << "Dropping debug info for " << *DI << "\n");
+      LLVM_DEBUG(dbgs() << "Dropping debug info for " << *DI
+                        << " (bad/undef address)\n");
       return true;
     }
 
@@ -1399,7 +1401,8 @@ bool FastISel::selectIntrinsicCall(const IntrinsicInst *II) {
     } else {
       // We can't yet handle anything else here because it would require
       // generating code, thus altering codegen because of debug info.
-      LLVM_DEBUG(dbgs() << "Dropping debug info for " << *DI << "\n");
+      LLVM_DEBUG(dbgs() << "Dropping debug info for " << *DI
+                        << " (no materialized reg for address)\n");
     }
     return true;
   }
@@ -1410,9 +1413,9 @@ bool FastISel::selectIntrinsicCall(const IntrinsicInst *II) {
     const Value *V = DI->getValue();
     assert(DI->getVariable()->isValidLocationForIntrinsic(DbgLoc) &&
            "Expected inlined-at fields to agree");
-    if (!V) {
+    if (!V || isa<UndefValue>(V)) {
       // Currently the optimizer can produce this; insert an undef to
-      // help debugging.  Probably the optimizer should not do this.
+      // help debugging.
       BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, II, false, 0U,
               DI->getVariable(), DI->getExpression());
     } else if (const auto *CI = dyn_cast<ConstantInt>(V)) {
@@ -1440,8 +1443,7 @@ bool FastISel::selectIntrinsicCall(const IntrinsicInst *II) {
       BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, II, IsIndirect, Reg,
               DI->getVariable(), DI->getExpression());
     } else {
-      // We can't yet handle anything else here because it would require
-      // generating code, thus altering codegen because of debug info.
+      // We don't know how to handle other cases, so we drop.
       LLVM_DEBUG(dbgs() << "Dropping debug info for " << *DI << "\n");
     }
     return true;

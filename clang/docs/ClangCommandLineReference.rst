@@ -256,6 +256,10 @@ Add -rpath with architecture-specific resource directory to the linker flags
 
 Path to system blacklist file for sanitizers
 
+.. option:: -fsystem-module
+
+Build this module as a system module. Only used with -emit-module
+
 .. option:: --gcc-toolchain=<arg>, -gcc-toolchain <arg>
 
 Use the gcc toolchain at the given directory
@@ -287,6 +291,10 @@ Display help for hidden options
 .. option:: --hip-link
 
 Link clang-offload-bundler bundles for HIP
+
+.. option:: -ibuiltininc
+
+Enable builtin #include directories even when -nostdinc is used before or after -ibuiltininc. Using -nobuiltininc after the option disables it
 
 .. option:: -image\_base <arg>
 
@@ -1365,6 +1373,8 @@ Use colors in diagnostics
 
 .. option:: -fcommon, -fno-common
 
+Place uninitialized global variables in a common block
+
 .. option:: -fcompile-resource=<arg>, --resource <arg>, --resource=<arg>
 
 .. option:: -fconstant-cfstrings, -fno-constant-cfstrings
@@ -1409,7 +1419,7 @@ Enable C++ exceptions
 
 .. option:: -fdata-sections, -fno-data-sections
 
-Place each data in its own section (ELF Only)
+Place each data in its own section
 
 .. option:: -fdebug-compilation-dir <arg>, -fdebug-compilation-dir=<arg>
 
@@ -1581,7 +1591,7 @@ Assert that the compilation takes place in a freestanding environment
 
 .. option:: -ffunction-sections, -fno-function-sections
 
-Place each function in its own section (ELF Only)
+Place each function in its own section
 
 .. option:: -fgnu-inline-asm, -fno-gnu-inline-asm
 
@@ -1606,6 +1616,10 @@ Sets various macros to claim compatibility with the given GCC version (default i
 .. option:: -fhonor-nans, -fno-honor-nans
 
 .. option:: -fhosted
+
+.. option:: -fignore-exceptions
+
+Enable support for ignoring exception handling constructs
 
 .. option:: -fimplicit-module-maps, -fmodule-maps, -fno-implicit-module-maps
 
@@ -1666,6 +1680,10 @@ Set LTO mode to either 'full' or 'thin'
 .. option:: -fmath-errno, -fno-math-errno
 
 Require math functions to indicate errors by setting errno
+
+.. option:: -fmax-tokens=<arg>
+
+Max total number of preprocessed tokens for -Wmax-tokens.
 
 .. option:: -fmax-type-align=<arg>
 
@@ -1780,6 +1798,10 @@ Directly create compilation output files. This may lead to incorrect incremental
 .. program:: clang1
 .. option:: -fno\_pch-validate-input-files-content
 .. program:: clang
+
+.. option:: -fnostack-clash-protection
+
+Disable stack clash protection
 
 .. option:: -fnoxray-link-deps
 
@@ -2016,6 +2038,8 @@ Generate an optimization record file in a specific format
 
 Use SEH style exceptions
 
+.. option:: -fsemantic-interposition, -fno-semantic-interposition
+
 .. option:: -fshort-enums, -fno-short-enums
 
 Allocate to an enum type only as many bytes as it needs for the declared range of possible values
@@ -2065,6 +2089,10 @@ Provide minimal debug info in the object/executable to facilitate online symboli
 Enables splitting of the LTO unit.
 
 .. option:: -fsplit-stack
+
+.. option:: -fstack-clash-protection
+
+Enable stack clash protection
 
 .. option:: -fstack-protector, -fno-stack-protector
 
@@ -2173,7 +2201,7 @@ Initialize trivial automatic stack variables: uninitialized (default) \| pattern
 
 .. option:: -funique-section-names, -fno-unique-section-names
 
-Use unique names for text and data sections (ELF Only)
+Use unique names for text and data sections
 
 .. option:: -funit-at-a-time, -fno-unit-at-a-time
 
@@ -2265,6 +2293,10 @@ DEPRECATED: Filename defining the whitelist for imbuing the 'always instrument' 
 
 Filename defining the list of functions/types for imbuing XRay attributes.
 
+.. option:: -fxray-ignore-loops, -fno-xray-ignore-loops
+
+Don't instrument functions with loops unless they also meet the minimum function size
+
 .. option:: -fxray-instruction-threshold<arg>
 
 .. program:: clang1
@@ -2279,7 +2311,7 @@ Generate XRay instrumentation sleds on function entry and exit
 
 .. option:: -fxray-instrumentation-bundle=<arg>
 
-Select which XRay instrumentation points to emit. Options: all, none, function, custom. Default is 'all'.
+Select which XRay instrumentation points to emit. Options: all, none, function-entry, function-exit, function, custom. Default is 'all'.  'function' includes both 'function-entry' and 'function-exit'.
 
 .. option:: -fxray-link-deps
 
@@ -2356,6 +2388,16 @@ OpenCL only. Defines that the global work-size be a multiple of the work-group s
 .. option:: -cl-unsafe-math-optimizations
 
 OpenCL only. Allow unsafe floating-point optimizations.  Also implies -cl-no-signed-zeros and -cl-mad-enable.
+
+SYCL flags
+----------
+.. option:: -fsycl, -fno-sycl
+
+Enable SYCL kernels compilation for device
+
+.. option:: -sycl-std=<arg>
+
+SYCL language standard to compile for.
 
 Target-dependent compilation options
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2497,9 +2539,13 @@ Reserve the 9 register (AArch64/RISC-V only)
 
 .. option:: -malign-branch-boundary=<arg>
 
+Specify the boundary's size to align branches
+
 .. option:: -malign-branch-prefix-size=<arg>
 
 .. option:: -malign-branch=<arg1>,<arg2>...
+
+Specify types of branches to align
 
 .. option:: -malign-double
 
@@ -2515,12 +2561,14 @@ Link stack frames through backchain on System Z
 
 .. option:: -mbranches-within-32B-boundaries
 
+Align selected branches (fused, jcc, jmp) within 32-byte boundary
+
 .. option:: -mcmodel=<arg>, -mcmodel=medany (equivalent to -mcmodel=medium), -mcmodel=medlow (equivalent to -mcmodel=small)
 
 .. option:: -mconsole<arg>
 
 .. program:: clang1
-.. option:: -mcpu=<arg>, -mv5 (equivalent to -mcpu=hexagonv5), -mv55 (equivalent to -mcpu=hexagonv55), -mv60 (equivalent to -mcpu=hexagonv60), -mv62 (equivalent to -mcpu=hexagonv62), -mv65 (equivalent to -mcpu=hexagonv65), -mv66 (equivalent to -mcpu=hexagonv66)
+.. option:: -mcpu=<arg>, -mv5 (equivalent to -mcpu=hexagonv5), -mv55 (equivalent to -mcpu=hexagonv55), -mv60 (equivalent to -mcpu=hexagonv60), -mv62 (equivalent to -mcpu=hexagonv62), -mv65 (equivalent to -mcpu=hexagonv65), -mv66 (equivalent to -mcpu=hexagonv66), -mv67 (equivalent to -mcpu=hexagonv67), -mv67t (equivalent to -mcpu=hexagonv67t)
 .. program:: clang
 
 .. option:: -mcrc, -mno-crc
@@ -2767,6 +2815,10 @@ Enable XNACK (AMDGPU only)
 
 ARM
 ---
+.. option:: -fAAPCSBitfieldLoad
+
+Follows the AAPCS standard that all volatile bit-field write generates at least one load. (ARM only).
+
 .. option:: -ffixed-r9
 
 Reserve the r9 register (ARM only)

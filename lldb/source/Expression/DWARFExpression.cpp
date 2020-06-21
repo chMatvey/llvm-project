@@ -1,4 +1,4 @@
-//===-- DWARFExpression.cpp -------------------------------------*- C++ -*-===//
+//===-- DWARFExpression.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -88,8 +88,7 @@ void DWARFExpression::UpdateValue(uint64_t const_value,
 void DWARFExpression::DumpLocation(Stream *s, const DataExtractor &data,
                                    lldb::DescriptionLevel level,
                                    ABI *abi) const {
-  llvm::DWARFExpression(data.GetAsLLVM(), llvm::dwarf::DWARF_VERSION,
-                        data.GetAddressByteSize())
+  llvm::DWARFExpression(data.GetAsLLVM(), data.GetAddressByteSize())
       .print(s->AsRawOstream(), abi ? &abi->GetMCRegisterInfo() : nullptr,
              nullptr);
 }
@@ -933,7 +932,7 @@ bool DWARFExpression::Evaluate(
   Value tmp;
   uint32_t reg_num;
 
-  /// Insertion point for evaluating multi-piece expression.
+  /// Insertion point for evaluating multi-piece expression.
   uint64_t op_piece_offset = 0;
   Value pieces; // Used for DW_OP_piece
 
@@ -1183,7 +1182,7 @@ bool DWARFExpression::Evaluate(
                 break;
               default:
                 stack.back().GetScalar() =
-                    addr_data.GetPointer(&addr_data_offset);
+                    addr_data.GetAddress(&addr_data_offset);
               }
               stack.back().ClearContext();
             } else {

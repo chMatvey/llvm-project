@@ -1006,7 +1006,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     assert(Tok.isNot(tok::kw_decltype) && Tok.isNot(tok::kw___super));
     return ParseCastExpression(ParseKind, isAddressOfOperand, isTypeCast,
                                isVectorLiteral, NotPrimaryExpression);
-      
+
   case tok::identifier: {      // primary-expression: identifier
                                // unqualified-id: identifier
                                // constant: enumeration-constant
@@ -2691,7 +2691,7 @@ Parser::ParseParenExpression(ParenParseOption &ExprType, bool stopIfCastExpr,
 
     PreferredType.enterTypeCast(Tok.getLocation(), Ty.get().get());
     ExprResult SubExpr = ParseCastExpression(AnyCastExpr);
-    
+
     if (Ty.isInvalid() || SubExpr.isInvalid())
       return ExprError();
 
@@ -3129,6 +3129,16 @@ bool Parser::ParseExpressionList(SmallVectorImpl<Expr *> &Exprs,
 
     if (Tok.is(tok::ellipsis))
       Expr = Actions.ActOnPackExpansion(Expr.get(), ConsumeToken());
+    else if (Tok.is(tok::code_completion)) {
+      // There's nothing to suggest in here as we parsed a full expression.
+      // Instead fail and propogate the error since caller might have something
+      // the suggest, e.g. signature help in function call. Note that this is
+      // performed before pushing the \p Expr, so that signature help can report
+      // current argument correctly.
+      SawError = true;
+      cutOffParsing();
+      break;
+    }
     if (Expr.isInvalid()) {
       SkipUntil(tok::comma, tok::r_paren, StopBeforeMatch);
       SawError = true;

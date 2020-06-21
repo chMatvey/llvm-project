@@ -65,10 +65,11 @@ const FunctionDecl *getSelectedFunction(const SelectionTree::Node *SelNode) {
 llvm::Optional<Path> getSourceFile(llvm::StringRef FileName,
                                    const Tweak::Selection &Sel) {
   if (auto Source = getCorrespondingHeaderOrSource(
-          FileName,
+          std::string(FileName),
           &Sel.AST->getSourceManager().getFileManager().getVirtualFileSystem()))
     return *Source;
-  return getCorrespondingHeaderOrSource(FileName, *Sel.AST, Sel.Index);
+  return getCorrespondingHeaderOrSource(std::string(FileName), *Sel.AST,
+                                        Sel.Index);
 }
 
 // Synthesize a DeclContext for TargetNS from CurContext. TargetNS must be empty
@@ -283,10 +284,10 @@ struct InsertionPoint {
 // should also try to follow ordering of declarations. For example, if decls
 // come in order `foo, bar, baz` then this function should return some point
 // between foo and baz for inserting bar.
-llvm::Expected<InsertionPoint>
-getInsertionPoint(llvm::StringRef Contents, llvm::StringRef QualifiedName,
-                  const format::FormatStyle &Style) {
-  auto Region = getEligiblePoints(Contents, QualifiedName, Style);
+llvm::Expected<InsertionPoint> getInsertionPoint(llvm::StringRef Contents,
+                                                 llvm::StringRef QualifiedName,
+                                                 const LangOptions &LangOpts) {
+  auto Region = getEligiblePoints(Contents, QualifiedName, LangOpts);
 
   assert(!Region.EligiblePoints.empty());
   // FIXME: This selection can be made smarter by looking at the definition
@@ -358,7 +359,7 @@ class DefineOutline : public Tweak {
 public:
   const char *id() const override;
 
-  bool hidden() const override { return true; }
+  bool hidden() const override { return false; }
   Intent intent() const override { return Intent::Refactor; }
   std::string title() const override {
     return "Move function body to out-of-line.";
@@ -415,9 +416,10 @@ public:
       return llvm::createStringError(Buffer.getError(),
                                      Buffer.getError().message());
     auto Contents = Buffer->get()->getBuffer();
-    auto InsertionPoint =
-        getInsertionPoint(Contents, Source->getQualifiedNameAsString(),
-                          getFormatStyleForFile(*CCFile, Contents, &FS));
+    auto LangOpts = format::getFormattingLangOpts(
+        getFormatStyleForFile(*CCFile, Contents, &FS));
+    auto InsertionPoint = getInsertionPoint(
+        Contents, Source->getQualifiedNameAsString(), LangOpts);
     if (!InsertionPoint)
       return InsertionPoint.takeError();
 

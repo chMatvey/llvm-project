@@ -284,8 +284,6 @@ def new_struct_path_tbaa : Flag<["-"], "new-struct-path-tbaa">,
   HelpText<"Enable enhanced struct-path aware Type Based Alias Analysis">;
 def masm_verbose : Flag<["-"], "masm-verbose">,
   HelpText<"Generate verbose assembly output">;
-def mcode_model : Separate<["-"], "mcode-model">,
-  HelpText<"The code model to use">, Values<"tiny,small,kernel,medium,large">;
 def mdebug_pass : Separate<["-"], "mdebug-pass">,
   HelpText<"Enable additional debug output">;
 def mframe_pointer_EQ : Joined<["-"], "mframe-pointer=">,
@@ -408,6 +406,9 @@ def cfguard_no_checks : Flag<["-"], "cfguard-no-checks">,
 def cfguard : Flag<["-"], "cfguard">,
     HelpText<"Emit Windows Control Flow Guard tables and checks">;
 
+def fdenormal_fp_math_f32_EQ : Joined<["-"], "fdenormal-fp-math-f32=">,
+   Group<f_Group>;
+
 //===----------------------------------------------------------------------===//
 // Dependency Output Options
 //===----------------------------------------------------------------------===//
@@ -479,6 +480,10 @@ def cc1as : Flag<["-"], "cc1as">;
 def ast_merge : Separate<["-"], "ast-merge">,
   MetaVarName<"<ast file>">,
   HelpText<"Merge the given AST file into the translation unit being compiled.">;
+def aux_target_cpu : Separate<["-"], "aux-target-cpu">,
+  HelpText<"Target a specific auxiliary cpu type">;
+def aux_target_feature : Separate<["-"], "aux-target-feature">,
+  HelpText<"Target specific auxiliary attributes">;
 def aux_triple : Separate<["-"], "aux-triple">,
   HelpText<"Auxiliary target triple.">;
 def code_completion_at : Separate<["-"], "code-completion-at">,
