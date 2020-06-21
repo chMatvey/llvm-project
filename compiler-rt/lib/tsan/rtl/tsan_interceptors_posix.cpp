@@ -30,7 +30,7 @@
 #include "tsan_rtl.h"
 #include "tsan_mman.h"
 #include "tsan_fd.h"
-#include "thread_sheduler/thread_scheduler.h"
+#include "thread_sheduler/TS_Scheduler.h"
 
 using namespace __tsan;
 
