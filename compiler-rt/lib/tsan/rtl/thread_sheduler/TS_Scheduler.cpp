@@ -1,5 +1,9 @@
-#include "thread_scheduler.h"
+#include "TS_Scheduler.h"
 #include "util/TS_Queue.h"
+#include "TS_Action.h"
+#include "TS_Point.h"
+#include "TS_ThreadInfo.h"
+#include "TS_ThreadStatus.h"
 
 #include <rtl/tsan_rtl.h>
 #include <sanitizer_common/sanitizer_allocator_internal.h>
@@ -15,19 +19,16 @@ namespace __tsan {
 
     int threadCount = 1;
 
-    struct BaseThreadScheduler : ThreadScheduler {
-        BaseThreadScheduler() {
-            actions.add({TS_Action::CREATE_THREAD, 0, 0});
-            actions.add({TS_Action::CREATE_THREAD, 0, 1});
-            actions.add({TS_Action::LOCK_MUTEX, 1, 2});
-            actions.add({TS_Action::LOCK_MUTEX, 2, -1});
-        }
+    class TS_DeterministicScheduler : public TS_Scheduler {
 
     private:
-        TS_Queue<TS_Point> actions;
+        TS_Queue<TS_Point *> *actions = nullptr;
+
+    public:
+        TS_DeterministicScheduler() {}
 
         void synchronize(int tid, TS_Action action) override {
-            if (actions.isEmpty()) {
+            if (actions == nullptr || actions->isEmpty()) {
                 return;
             }
 
@@ -35,11 +36,11 @@ namespace __tsan {
                 threadCount++;
             }
 
-            TS_Point currentAction = actions.getCurrent();
+            auto *currentAction = actions->getCurrent();
 
-            if (currentAction.currentTid == tid && currentAction.action == action) {
+            if (currentAction->currentTid == tid && currentAction->action == action) {
                 for (int i = 0; i < threadCount; i++) {
-                    if (i == currentAction.nextTid || currentAction.nextTid == -1) {
+                    if (i == currentAction->nextTid || currentAction->nextTid == -1) {
                         //__atomic_store_n(&threadInfo[i].status, TS_ThreadStatus::RUN, __ATOMIC_SEQ_CST);
                         threadInfo[i].status = TS_ThreadStatus::RUN;
                     } else {
@@ -47,40 +48,39 @@ namespace __tsan {
                         threadInfo[i].status = TS_ThreadStatus::WAIT;
                     }
                 }
-                actions.next();
+                actions->next();
             }
         }
 
-    public:
-        void synchronizeCreateThread(int tid) {
-            synchronize(tid, TS_Action::CREATE_THREAD);
-        }
-
-        void synchronizeCompleteThread(int tid) {
-            synchronize(tid, TS_Action::COMPLETE_THREAD);
-        }
-
-        void synchronizeLockMutex(int tid) {
-            synchronize(tid, TS_Action::LOCK_MUTEX);
-        }
-
-        void synchronizeUnlockMutex(int tid) {
-            synchronize(tid, TS_Action::UNLOCK_MUTEX);
-        }
-
-        void afterSynchronize(int tid) {
+        void afterSynchronize(int tid) override {
             while (__atomic_load_n(&threadInfo[tid].status, __ATOMIC_SEQ_CST) == TS_ThreadStatus::WAIT) {
                 internal_sched_yield();
             }
         }
+
+        void synchronizeCreateThread(int tid) override {
+            synchronize(tid, TS_Action::CREATE_THREAD);
+        }
+
+        void synchronizeCompleteThread(int tid) override {
+            synchronize(tid, TS_Action::COMPLETE_THREAD);
+        }
+
+        void synchronizeLockMutex(int tid) override {
+            synchronize(tid, TS_Action::LOCK_MUTEX);
+        }
+
+        void synchronizeUnlockMutex(int tid) override {
+            synchronize(tid, TS_Action::UNLOCK_MUTEX);
+        }
     };
 
-    ThreadScheduler *threadScheduler = nullptr;
+    TS_Scheduler *threadScheduler = nullptr;
 
-    ThreadScheduler &GetThreadScheduler() {
+    TS_Scheduler &GetThreadScheduler() {
         if (threadScheduler == nullptr) {
-            auto *scheduler = static_cast<BaseThreadScheduler *>(InternalCalloc(1, sizeof(BaseThreadScheduler)));
-            new(scheduler) BaseThreadScheduler;
+            auto *scheduler = static_cast<TS_DeterministicScheduler *>(InternalCalloc(1, sizeof(TS_DeterministicScheduler)));
+            scheduler = new TS_DeterministicScheduler();
             threadScheduler = scheduler;
         }
 

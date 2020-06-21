@@ -54,7 +54,7 @@ set(TSAN_SOURCES
   rtl/tsan_suppressions.cpp
   rtl/tsan_symbolize.cpp
   rtl/tsan_sync.cpp
-  rtl/thread_sheduler/thread_scheduler.cpp
+  rtl/thread_sheduler/TS_Scheduler.cpp
   )
 
 set(TSAN_CXX_SOURCES
@@ -110,7 +110,11 @@ set(TSAN_HEADERS
   rtl/tsan_sync.h
   rtl/tsan_trace.h
   rtl/tsan_update_shadow_word_inl.h
-  rtl/thread_sheduler/thread_scheduler.h
+  rtl/thread_sheduler/TS_Scheduler.h
+  rtl/thread_sheduler/TS_Action.h
+  rtl/thread_sheduler/TS_Point.h
+  rtl/thread_sheduler/TS_ThreadInfo.h
+  rtl/thread_sheduler/TS_ThreadStatus.h
   rtl/thread_sheduler/util/TS_FIleManager.h
   rtl/thread_sheduler/util/TS_Entry.h
   rtl/thread_sheduler/util/TS_Queue.h

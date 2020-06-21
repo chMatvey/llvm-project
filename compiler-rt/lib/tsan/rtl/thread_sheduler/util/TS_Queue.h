@@ -14,7 +14,7 @@ namespace __tsan::ts::util {
 
         TS_QueueNode *head = nullptr;
         TS_QueueNode *tail = nullptr;
-        int size = 0;;
+        int size = 0;
 
     public:
         bool isEmpty() {

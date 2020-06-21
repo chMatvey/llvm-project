@@ -19,7 +19,7 @@ namespace __tsan::ts::util {
 
     class TS_FIleManager {
     public:
-        const char *readFile(const char *path) {
+        static const char *readFile(const char *path) {
             int fd = -1;
             ssize_t bytes_read = -1;
             int i = 0;

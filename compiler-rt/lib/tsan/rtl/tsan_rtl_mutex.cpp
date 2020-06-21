@@ -19,7 +19,7 @@
 #include "tsan_report.h"
 #include "tsan_symbolize.h"
 #include "tsan_platform.h"
-#include "thread_sheduler/thread_scheduler.h"
+#include "thread_sheduler/TS_Scheduler.h"
 
 namespace __tsan {
 
