@@ -9,6 +9,11 @@ namespace __tsan {
         TS_Action action;
         int currentTid;
         int nextTid;
+
+        TS_Point() {}
+
+        TS_Point(TS_Action action, int currentTid, int nextTid) : action(action), currentTid(currentTid),
+                                                                  nextTid(nextTid) {}
     };
 }
 

@@ -8,11 +8,6 @@ namespace __tsan::ts::lexer {
     struct TS_Token {
         TS_State state;
         const char *value;
-
-        TS_Token(TS_State state, const char *value) {
-            this->state = state;
-            this->value = value;
-        }
     };
 }
 

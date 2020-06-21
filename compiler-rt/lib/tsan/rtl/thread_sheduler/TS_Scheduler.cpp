@@ -4,6 +4,10 @@
 #include "TS_Point.h"
 #include "TS_ThreadInfo.h"
 #include "TS_ThreadStatus.h"
+#include "util/TS_FIleManager.h"
+#include "lexer/TS_Lexer.h"
+#include "lexer/TS_Token.h"
+#include "parser/TS_Parser.h"
 
 #include <rtl/tsan_rtl.h>
 #include <sanitizer_common/sanitizer_allocator_internal.h>
@@ -12,7 +16,9 @@
 #include <cstdlib>
 #include <unistd.h>
 
-using  namespace __tsan::ts::util;
+using namespace __tsan::ts::util;
+using namespace __tsan::ts::lexer;
+using namespace __tsan::ts::parser;
 
 namespace __tsan {
     TS_ThreadInfo threadInfo[65536] = {};
@@ -27,6 +33,10 @@ namespace __tsan {
     public:
         TS_DeterministicScheduler() {}
 
+        TS_DeterministicScheduler(TS_Queue<TS_Point *> *actions) {
+            this->actions = actions;
+        }
+
         void synchronize(int tid, TS_Action action) override {
             if (actions == nullptr || actions->isEmpty()) {
                 return;
@@ -36,7 +46,7 @@ namespace __tsan {
                 threadCount++;
             }
 
-            auto *currentAction = actions->getCurrent();
+            auto currentAction = actions->getCurrent();
 
             if (currentAction->currentTid == tid && currentAction->action == action) {
                 for (int i = 0; i < threadCount; i++) {
@@ -53,6 +63,10 @@ namespace __tsan {
         }
 
         void afterSynchronize(int tid) override {
+            if (actions != nullptr && actions->isEmpty()) {
+                return;
+            }
+
             while (__atomic_load_n(&threadInfo[tid].status, __ATOMIC_SEQ_CST) == TS_ThreadStatus::WAIT) {
                 internal_sched_yield();
             }
@@ -78,9 +92,22 @@ namespace __tsan {
     TS_Scheduler *threadScheduler = nullptr;
 
     TS_Scheduler &GetThreadScheduler() {
+        Printf("Path to test scenario %s", flags()->ts_path);
         if (threadScheduler == nullptr) {
             auto *scheduler = static_cast<TS_DeterministicScheduler *>(InternalCalloc(1, sizeof(TS_DeterministicScheduler)));
-            scheduler = new TS_DeterministicScheduler();
+            if (strcmp(flags()->ts_path, "") == 0) {
+                scheduler = new TS_DeterministicScheduler();
+            } else {
+                TS_Lexer lexer;
+                TS_Parser parser;
+
+                const char *fileContent = __tsan::ts::util::TS_FIleManager::readFile(flags()->ts_path);
+                auto tokens = lexer.scan(fileContent);
+                auto *points = parser.parse(tokens);
+
+                scheduler = new TS_DeterministicScheduler(points);
+            }
+
             threadScheduler = scheduler;
         }
 
