@@ -1,7 +1,3 @@
-//
-// Created by matvey on 6/18/20.
-//
-
 #ifndef SANITAZER_TS_FILEMANAGER_H
 #define SANITAZER_TS_FILEMANAGER_H
 

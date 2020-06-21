@@ -92,7 +92,6 @@ namespace __tsan {
     TS_Scheduler *threadScheduler = nullptr;
 
     TS_Scheduler &GetThreadScheduler() {
-        Printf("Path to test scenario %s", flags()->ts_path);
         if (threadScheduler == nullptr) {
             auto *scheduler = static_cast<TS_DeterministicScheduler *>(InternalCalloc(1, sizeof(TS_DeterministicScheduler)));
             if (strcmp(flags()->ts_path, "") == 0) {

@@ -1,7 +1,3 @@
-//
-// Created by matvey on 6/14/20.
-//
-
 #ifndef SANITAZER_TS_ENTRY_H
 #define SANITAZER_TS_ENTRY_H
 
