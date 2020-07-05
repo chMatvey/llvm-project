@@ -72,7 +72,7 @@ thread1:
 thread2:
     mutex_lock
 ```
-Run with this flag
+3. Run with this flag
 ```
 TSAN_OPTIONS="ts_path=pathToTestScenario" executionFile
 ```
