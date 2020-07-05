@@ -1,4 +1,4 @@
-# Deterministic testing tool for multithreaded programs based on Google ThreadSainitizer
+# Deterministic testing tool for multithreaded programs based on Google ThreadSanitizer
 https://github.com/google/sanitizers/wiki/ThreadSanitizerCppManual
 ## This repository forked from LLVM Project
 https://github.com/llvm/llvm-project
