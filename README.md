@@ -1,13 +1,7 @@
-# The LLVM Compiler Infrastructure
-
-This directory and its subdirectories contain source code for LLVM,
-a toolkit for the construction of highly optimized compilers,
-optimizers, and runtime environments.
-
-The README briefly describes how to get started with building LLVM.
-For more information on how to contribute to the LLVM project, please
-take a look at the
-[Contributing to LLVM](https://llvm.org/docs/Contributing.html) guide.
+# Deterministic testing tool for multithreaded programs based on Google ThreadSainitizer
+https://github.com/google/sanitizers/wiki/ThreadSanitizerCppManual
+## This repository forked from LLVM Project
+https://github.com/llvm/llvm-project
 
 ## Getting Started with the LLVM System
 
@@ -15,95 +9,71 @@ Taken from https://llvm.org/docs/GettingStarted.html.
 
 ### Overview
 
-Welcome to the LLVM project!
+This tool allows you to set the deterministic execution of threads using a test script.
+Determinism is that each thread is executed sequentially. 
+In other words, you can use this tool to set sequential execution of threads. 
+This can be used to prove that there are mutual locks in the program.
+Control between threads can be passed on the following events:
+1. Create thread (create_thread)
+2. Complete thread (complete_thread)
+3. Mutex lock (mutex_lock)
 
-The LLVM project has multiple components. The core of the project is
-itself called "LLVM". This contains all of the tools, libraries, and header
-files needed to process intermediate representations and converts it into
-object files.  Tools include an assembler, disassembler, bitcode analyzer, and
-bitcode optimizer.  It also contains basic regression tests.
+Tool can work with posix threads.
 
-C-like languages use the [Clang](http://clang.llvm.org/) front end.  This
-component compiles C, C++, Objective C, and Objective C++ code into LLVM bitcode
--- and from there into object files, using LLVM.
+### How use
 
-Other components include:
-the [libc++ C++ standard library](https://libcxx.llvm.org),
-the [LLD linker](https://lld.llvm.org), and more.
+1. Compile program with ThreadSanitizer flags.
+https://github.com/google/sanitizers/wiki/ThreadSanitizerCppManual
 
-### Getting the Source Code and Building LLVM
+2. Describe the thread execution scenario.
 
-The LLVM Getting Started documentation may be out of date.  The [Clang
-Getting Started](http://clang.llvm.org/get_started.html) page might have more
-accurate information.
+Example:
 
-This is an example workflow and configuration to get and build the LLVM source:
+Source code 
+```
+#include <pthread.h>
 
-1. Checkout LLVM (including related subprojects like Clang):
+pthread_mutex_t mutex1;
+pthread_mutex_t mutex2;
 
-     * ``git clone https://github.com/llvm/llvm-project.git``
+void *thread1(void *arg) {
+   pthread_mutex_lock(&mutex1);
+   pthread_mutex_lock(&mutex2);
+   pthread_mutex_unlock(&mutex1);
+   pthread_mutex_unlock(&mutex2);
+}
 
-     * Or, on windows, ``git clone --config core.autocrlf=false
-    https://github.com/llvm/llvm-project.git``
+void *thread2(void *arg) {
+   pthread_mutex_lock(&mutex2);
+   pthread_mutex_lock(&mutex1);
+   pthread_mutex_unlock(&mutex2);
+   pthread_mutex_unlock(&mutex1);
+}
 
-2. Configure and build LLVM and Clang:
+int main() {
+  pthread_mutex_init(&mutex1, NULL);
+  pthread_mutex_init(&mutex2, NULL);
+  pthread_t t[2];
+  pthread_create(&t[0], NULL, thread1, NULL);
+  pthread_create(&t[1], NULL, thread2, NULL);
+  pthread_join(t[0], NULL);
+  pthread_join(t[1], NULL);
+  
+  return 0;
+}
+```
+Test scenario
+```
+main:
+    create_thread(thread1)
+    create_thread(thread2)
+thread1:
+    mutex_lock
+thread2:
+    mutex_lock
+```
+Run with this flag
+```
+TSAN_OPTIONS="ts_path=pathToTestScenario" executionFile
+```
 
-     * ``cd llvm-project``
-
-     * ``mkdir build``
-
-     * ``cd build``
-
-     * ``cmake -G <generator> [options] ../llvm``
-
-        Some common generators are:
-
-        * ``Ninja`` --- for generating [Ninja](https://ninja-build.org)
-          build files. Most llvm developers use Ninja.
-        * ``Unix Makefiles`` --- for generating make-compatible parallel makefiles.
-        * ``Visual Studio`` --- for generating Visual Studio projects and
-          solutions.
-        * ``Xcode`` --- for generating Xcode projects.
-
-        Some Common options:
-
-        * ``-DLLVM_ENABLE_PROJECTS='...'`` --- semicolon-separated list of the LLVM
-          subprojects you'd like to additionally build. Can include any of: clang,
-          clang-tools-extra, libcxx, libcxxabi, libunwind, lldb, compiler-rt, lld,
-          polly, or debuginfo-tests.
-
-          For example, to build LLVM, Clang, libcxx, and libcxxabi, use
-          ``-DLLVM_ENABLE_PROJECTS="clang;libcxx;libcxxabi"``.
-
-        * ``-DCMAKE_INSTALL_PREFIX=directory`` --- Specify for *directory* the full
-          pathname of where you want the LLVM tools and libraries to be installed
-          (default ``/usr/local``).
-
-        * ``-DCMAKE_BUILD_TYPE=type`` --- Valid options for *type* are Debug,
-          Release, RelWithDebInfo, and MinSizeRel. Default is Debug.
-
-        * ``-DLLVM_ENABLE_ASSERTIONS=On`` --- Compile with assertion checks enabled
-          (default is Yes for Debug builds, No for all other build types).
-
-      * Run your build tool of choice!
-
-        * The default target (i.e. ``ninja`` or ``make``) will build all of LLVM.
-
-        * The ``check-all`` target (i.e. ``ninja check-all``) will run the
-          regression tests to ensure everything is in working order.
-
-        * CMake will generate build targets for each tool and library, and most
-          LLVM sub-projects generate their own ``check-<project>`` target.
-
-        * Running a serial build will be *slow*.  To improve speed, try running a
-          parallel build. That's done by default in Ninja; for ``make``, use
-          ``make -j NNN`` (NNN is the number of parallel jobs, use e.g. number of
-          CPUs you have.)
-
-      * For more information see [CMake](https://llvm.org/docs/CMake.html)
-
-Consult the
-[Getting Started with LLVM](https://llvm.org/docs/GettingStarted.html#getting-started-with-llvm)
-page for detailed information on configuring and compiling LLVM. You can visit
-[Directory Layout](https://llvm.org/docs/GettingStarted.html#directory-layout)
-to learn about the layout of the source code tree.
